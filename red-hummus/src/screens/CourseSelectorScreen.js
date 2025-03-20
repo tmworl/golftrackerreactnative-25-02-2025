@@ -1,107 +1,347 @@
 // src/screens/CourseSelectorScreen.js
 
-import React from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  StyleSheet,
+  SafeAreaView
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
+import { getAllCourses } from "../services/courseService";
 import AppText from "../components/AppText";
-
-// Dummy course for testing - in a production app, this would come from an API or database
-const dummyCourse = { 
-  id: "550e8400-e29b-41d4-a716-446655440000", 
-  name: "Pebble Beach (White Tees)",
-  par: 72 // Added par value for the course
-};
 
 /**
  * CourseSelectorScreen Component
  * 
- * Allows users to select a golf course to play.
- * Currently uses a dummy course, but would be expanded to fetch from database
- * or API in a full implementation.
- * 
- * Note: Title "Select Course" is now in the navigation header instead of in-screen.
+ * This screen displays a list of available golf courses from the database
+ * and allows the user to select one and a tee to play.
  */
 export default function CourseSelectorScreen({ navigation }) {
-  // Function to select a course and navigate to the tracker
-  const selectCourse = async () => {
+  // State for courses and selection
+  const [courses, setCourses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedTeeId, setSelectedTeeId] = useState(null);
+  
+  // Load all courses from the database when component mounts
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setIsLoading(true);
+        const coursesData = await getAllCourses();
+        setCourses(coursesData);
+      } catch (error) {
+        console.error("Error loading courses:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadCourses();
+  }, []);
+  
+  /**
+   * Handle selecting a course
+   */
+  const handleCourseSelect = (course) => {
+    setSelectedCourse(course);
+    setSelectedTeeId(null); // Reset tee selection
+    
+    // If there's only one tee, select it automatically
+    if (course.tees && course.tees.length === 1) {
+      setSelectedTeeId(course.tees[0].id);
+    }
+  };
+  
+  /**
+   * Handle selecting a tee
+   */
+  const handleTeeSelect = (teeId) => {
+    setSelectedTeeId(teeId);
+  };
+  
+  /**
+   * Start a round with the selected course and tee
+   */
+  const handleStartRound = async () => {
     try {
-      // Store the course data in AsyncStorage for use in TrackerScreen
-      await AsyncStorage.setItem("selectedCourse", JSON.stringify(dummyCourse));
+      if (!selectedCourse || !selectedTeeId) {
+        return;
+      }
+      
+      // Get the selected tee object
+      const selectedTee = selectedCourse.tees.find(tee => tee.id === selectedTeeId);
+      
+      if (!selectedTee) {
+        console.error("Selected tee not found");
+        return;
+      }
+      
+      console.log("Starting round with:", {
+        courseId: selectedCourse.id,
+        courseName: selectedCourse.name,
+        teeId: selectedTeeId,
+        teeName: selectedTee.name
+      });
+      
+      // Store the selected course and tee in AsyncStorage
+      await AsyncStorage.setItem("selectedCourse", JSON.stringify({
+        id: selectedCourse.id,
+        name: selectedCourse.name,
+        teeId: selectedTeeId,
+        teeName: selectedTee.name,
+        teeColor: selectedTee.color
+      }));
+      
       // Navigate to the tracker screen
       navigation.navigate("Tracker");
     } catch (error) {
-      console.error("Error saving course data:", error);
+      console.error("Error starting round:", error);
     }
   };
-
+  
+  /**
+   * Render a course item in the list
+   */
+  const renderCourseItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.courseItem,
+        selectedCourse?.id === item.id && styles.selectedCourseItem
+      ]}
+      onPress={() => handleCourseSelect(item)}
+    >
+      <View style={styles.courseItemContent}>
+        <AppText variant="body" bold style={styles.courseName}>
+          {item.name}
+        </AppText>
+        
+        {item.club_name && item.club_name !== item.name && (
+          <AppText variant="body" style={styles.clubName}>
+            {item.club_name}
+          </AppText>
+        )}
+        
+        <AppText variant="caption" style={styles.location}>
+          {item.location}
+        </AppText>
+      </View>
+    </TouchableOpacity>
+  );
+  
+  /**
+   * Render a tee option
+   */
+  const renderTeeOption = (tee) => (
+    <TouchableOpacity
+      key={tee.id}
+      style={[
+        styles.teeOption,
+        selectedTeeId === tee.id && styles.selectedTeeOption
+      ]}
+      onPress={() => handleTeeSelect(tee.id)}
+    >
+      <View 
+        style={[
+          styles.teeColor,
+          { backgroundColor: tee.color || "#CCCCCC" }
+        ]} 
+      />
+      <View style={styles.teeInfo}>
+        <AppText variant="body" style={styles.teeName}>
+          {tee.name}
+        </AppText>
+        {tee.total_distance && (
+          <AppText variant="caption">
+            {tee.total_distance} yards
+          </AppText>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+  
   return (
     <Layout>
-      <View style={styles.center}>
-        {/* Course information display */}
-        <View style={styles.courseCard}>
-          <AppText variant="subtitle" style={styles.courseName}>
-            {dummyCourse.name}
-          </AppText>
-          <AppText variant="body" style={styles.coursePar}>
-            Par: {dummyCourse.par}
+      <SafeAreaView style={styles.container}>
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <AppText variant="title" style={styles.title}>
+            Select a Course
           </AppText>
         </View>
         
-        {/* Material Design styled button */}
-        <TouchableOpacity 
-          style={styles.primaryButton}
-          onPress={selectCourse}
+        {/* Course List */}
+        <View style={styles.courseListContainer}>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          ) : courses.length > 0 ? (
+            <FlatList
+              data={courses}
+              renderItem={renderCourseItem}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.courseList}
+            />
+          ) : (
+            <AppText variant="body" style={styles.noCoursesText}>
+              No courses available. Please add courses to the database.
+            </AppText>
+          )}
+        </View>
+        
+        {/* Tee Selection */}
+        {selectedCourse && (
+          <View style={styles.teeSelectionContainer}>
+            <AppText variant="subtitle" style={styles.teeSelectionTitle}>
+              Select Tee
+            </AppText>
+            
+            <View style={styles.teesList}>
+              {selectedCourse.tees && selectedCourse.tees.length > 0 ? (
+                selectedCourse.tees.map(tee => renderTeeOption(tee))
+              ) : (
+                <AppText variant="body" style={styles.noTeesText}>
+                  No tee information available for this course
+                </AppText>
+              )}
+            </View>
+          </View>
+        )}
+        
+        {/* Start Round Button */}
+        <TouchableOpacity
+          style={[
+            styles.startButton,
+            (!selectedCourse || !selectedTeeId) && styles.disabledButton
+          ]}
+          onPress={handleStartRound}
+          disabled={!selectedCourse || !selectedTeeId}
         >
-          <AppText variant="button" color="#FFFFFF" bold>
-            Select This Course and Start Round
+          <AppText 
+            variant="button" 
+            color="#FFFFFF" 
+            bold
+          >
+            Start Round
           </AppText>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     </Layout>
   );
 }
 
-// Styles with Material Design guidelines
 const styles = StyleSheet.create({
-  center: {
+  container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
   },
-  courseCard: {
+  titleContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  title: {
+    marginBottom: 8,
+  },
+  courseListContainer: {
+    flex: 1,
+  },
+  courseList: {
+    paddingBottom: 16,
+  },
+  courseItem: {
     backgroundColor: "#fff",
     borderRadius: 8,
     padding: 16,
-    width: "100%",
-    marginBottom: 20,
-    elevation: 2,
+    marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 2,
+    elevation: 2,
+  },
+  selectedCourseItem: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+  },
+  courseItemContent: {
+    flex: 1,
   },
   courseName: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  coursePar: {
+  clubName: {
+    marginBottom: 4,
+  },
+  location: {
     color: "#666",
   },
-  // Material Design button styling
-  primaryButton: {
+  noCoursesText: {
+    fontStyle: "italic",
+    color: "#666",
+    textAlign: "center",
+    padding: 16,
+  },
+  teeSelectionContainer: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  teeSelectionTitle: {
+    marginBottom: 8,
+  },
+  teesList: {
+    marginBottom: 8,
+  },
+  teeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  selectedTeeOption: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+  },
+  teeColor: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  teeInfo: {
+    flex: 1,
+  },
+  teeName: {
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  noTeesText: {
+    fontStyle: "italic",
+    color: "#666",
+    textAlign: "center",
+    padding: 8,
+  },
+  startButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 20,
+    borderRadius: 24,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
-    minWidth: 200,
-    marginVertical: 16,
+    marginBottom: 16,
+  },
+  disabledButton: {
+    backgroundColor: "#ccc",
   },
 });

@@ -5,20 +5,19 @@ import { supabase } from "./supabase";
 /**
  * Create a new round record in Supabase.
  * 
- * Database Schema (rounds):
- * - profile_id: uuid NOT NULL  (current user's profile ID)
- * - course_id: uuid NOT NULL   (ID of the course being played)
- * - is_complete: boolean NULL DEFAULT false
- * - score: integer  (player's score relative to par)
- * - gross_shots: integer  (total number of shots taken)
- * - date, created_at, updated_at default automatically
- * 
  * @param {string} profile_id - The current user's profile ID.
  * @param {string} course_id - The ID of the course.
+ * @param {string} tee_id - The ID of the selected tee.
+ * @param {string} tee_name - The name of the selected tee.
  * @returns {object} The newly created round record.
  */
-export const createRound = async (profile_id, course_id) => {
-  console.log("[createRound] Attempting to create a new round", { profile_id, course_id });
+export const createRound = async (profile_id, course_id, tee_id, tee_name) => {
+  console.log("[createRound] Attempting to create a new round", { 
+    profile_id, 
+    course_id,
+    tee_id,
+    tee_name
+  });
   
   // Insert a new round record into the rounds table
   const { data, error } = await supabase
@@ -27,6 +26,8 @@ export const createRound = async (profile_id, course_id) => {
       profile_id,
       course_id,
       is_complete: false, // New round is not complete
+      selected_tee_id: tee_id,
+      selected_tee_name: tee_name
     })
     .select(); // Returns the inserted record(s)
 
@@ -40,81 +41,79 @@ export const createRound = async (profile_id, course_id) => {
 };
 
 /**
- * Insert shot records for a given hole based on shotCounts.
+ * Save hole data for a specific hole
  * 
- * Database Schema (shots):
- * - round_id: uuid NOT NULL  (round to which these shots belong)
- * - hole_number: integer NOT NULL
- * - shot_type: text NOT NULL (e.g., "Tee Shot", "Long Shot", etc.)
- * - result: text NOT NULL    (e.g., "On Target", "Slightly Off", "Recovery Needed")
- * - created_at defaults to now()
+ * This function saves hole data including shots in the new
+ * hole-centric format to the shots table.
  * 
- * @param {string} round_id - The ID of the current round.
- * @param {number} hole_number - The current hole number.
- * @param {object} shotCounts - Object with shot counts per shot type and outcome.
- * @returns {array} The inserted shot records.
+ * @param {string} round_id - The ID of the round
+ * @param {number} hole_number - The hole number (1-18)
+ * @param {object} hole_data - The hole data including par, distance, and shots
+ * @param {number} total_score - The total number of shots for this hole
+ * @returns {object} The saved record
  */
-export const insertShots = async (round_id, hole_number, shotCounts) => {
-  console.log("[insertShots] Preparing to insert shots", { round_id, hole_number, shotCounts });
+export const saveHoleData = async (round_id, hole_number, hole_data, total_score) => {
+  console.log("[saveHoleData] Saving data for hole", hole_number, "in round", round_id);
   
-  // Build an array of shot records from shotCounts
-  const shots = [];
-  
-  // Loop through each shot type in the shotCounts object
-  // shotCounts structure example:
-  // {
-  //   "Tee Shot": { "On Target": 2, "Slightly Off": 1, "Recovery Needed": 0 },
-  //   "Approach": { "On Target": 0, "Slightly Off": 2, "Recovery Needed": 1 },
-  //   ...
-  // }
-  Object.keys(shotCounts).forEach((shotType) => {
-    const outcomes = shotCounts[shotType];
+  try {
+    // Upsert the hole data (insert if not exists, update if exists)
+    const { data, error } = await supabase
+      .from("shots")
+      .upsert({
+        round_id,
+        hole_number,
+        hole_data,
+        total_score
+      }, {
+        onConflict: 'round_id,hole_number', // Handle the unique constraint
+        returning: 'representation' // Return the full record
+      });
     
-    // Loop through each outcome for this shot type
-    Object.keys(outcomes).forEach((result) => {
-      const count = outcomes[result];
-      
-      // Add a shot record for each count
-      for (let i = 0; i < count; i++) {
-        shots.push({
-          round_id,
-          hole_number,
-          shot_type: shotType,  // e.g., "Tee Shot", "Approach"
-          result,               // e.g., "On Target", "Slightly Off"
-        });
-      }
-    });
-  });
-
-  // If no shots to insert, return early
-  if (shots.length === 0) {
-    console.log("[insertShots] No shots to insert.");
-    return [];
-  }
-
-  console.log("[insertShots] Inserting shots:", shots);
-
-  // Insert the shots into the shots table
-  const { data, error } = await supabase
-    .from("shots")
-    .insert(shots);
-
-  if (error) {
-    console.error("[insertShots] Error inserting shots:", error);
+    if (error) {
+      console.error("[saveHoleData] Error saving hole data:", error);
+      throw error;
+    }
+    
+    console.log("[saveHoleData] Hole data saved successfully:", data);
+    return data;
+  } catch (error) {
+    console.error("[saveHoleData] Exception in saveHoleData:", error);
     throw error;
   }
+};
+
+/**
+ * Get all hole data for a round
+ * 
+ * @param {string} round_id - The ID of the round
+ * @returns {Array} Array of hole data records
+ */
+export const getRoundHoleData = async (round_id) => {
+  console.log("[getRoundHoleData] Getting hole data for round", round_id);
   
-  console.log("[insertShots] Shots inserted successfully:", data);
-  return data;
+  try {
+    const { data, error } = await supabase
+      .from("shots")
+      .select("*")
+      .eq("round_id", round_id)
+      .order("hole_number", { ascending: true });
+    
+    if (error) {
+      console.error("[getRoundHoleData] Error getting hole data:", error);
+      throw error;
+    }
+    
+    console.log("[getRoundHoleData] Found hole data:", data?.length, "holes");
+    return data || [];
+  } catch (error) {
+    console.error("[getRoundHoleData] Exception in getRoundHoleData:", error);
+    return [];
+  }
 };
 
 /**
  * Complete a round by updating its is_complete flag and calculating final statistics.
- * This function:
- * 1. Counts the total shots taken during the round (gross_shots)
- * 2. Calculates the score relative to par
- * 3. Updates the round record with these values and marks it complete
- * 4. Triggers the Edge Function to generate AI insights for the completed round
+ * Works with the new shots data structure.
  * 
  * @param {string} round_id - The ID of the round to complete.
  * @returns {object} The updated round record.
@@ -123,17 +122,16 @@ export const completeRound = async (round_id) => {
   try {
     console.log("[completeRound] Calculating final statistics for round:", round_id);
     
-    // 1. Get the course par value
-    // First, get the course_id from the round
+    // 1. Get the course_id from the round
     const { data: roundData, error: roundError } = await supabase
       .from("rounds")
-      .select("course_id, profile_id") // Now also get profile_id for the Edge Function
+      .select("course_id, profile_id, selected_tee_name") 
       .eq("id", round_id)
       .single();
       
     if (roundError) throw roundError;
     
-    // Then get the par value for that course
+    // 2. Get the par value for that course
     const { data: courseData, error: courseError } = await supabase
       .from("courses")
       .select("par")
@@ -144,15 +142,21 @@ export const completeRound = async (round_id) => {
     
     const coursePar = courseData.par || 72; // Default to 72 if par is not set
     
-    // 2. Count total shots for the round
-    const { count: grossShots, error: countError } = await supabase
+    // 3. Get all hole records for this round
+    const { data: holeRecords, error: holesError } = await supabase
       .from("shots")
-      .select("id", { count: "exact" })
+      .select("total_score")
       .eq("round_id", round_id);
       
-    if (countError) throw countError;
+    if (holesError) throw holesError;
     
-    // 3. Calculate score relative to par
+    // 4. Calculate total gross shots by summing the total_score for each hole
+    let grossShots = 0;
+    holeRecords.forEach(hole => {
+      grossShots += hole.total_score || 0;
+    });
+    
+    // 5. Calculate score relative to par
     const score = grossShots - coursePar;
     
     console.log("[completeRound] Statistics calculated:", {
@@ -161,7 +165,7 @@ export const completeRound = async (round_id) => {
       score
     });
     
-    // 4. Update the round record with calculated values and mark as complete
+    // 6. Update the round record with calculated values and mark as complete
     const { data, error } = await supabase
       .from("rounds")
       .update({ 
@@ -179,12 +183,10 @@ export const completeRound = async (round_id) => {
 
     console.log("[completeRound] Round completed successfully:", data);
     
-    // 5. Now that the round is complete, trigger the Edge Function to generate insights
-    // This is done asynchronously so we don't block the UI
+    // 7. Trigger insights generation
     try {
       console.log("[completeRound] Triggering insights generation Edge Function");
       
-      // Call the Edge Function with the user ID and round ID
       supabase.functions.invoke('analyze-golf-performance', {
         body: { 
           userId: roundData.profile_id,
@@ -195,23 +197,15 @@ export const completeRound = async (round_id) => {
           console.error("[completeRound] Error from insights Edge Function:", insightsError);
         } else {
           console.log("[completeRound] Insights generated successfully:", insightsData);
-          // Note: We're not storing the insights in the database yet
-          // That will be implemented in a future update
         }
       }).catch(err => {
         console.error("[completeRound] Exception calling insights Edge Function:", err);
       });
       
-      // Note: We're not awaiting this call, so it happens in the background
-      // The function will continue to return the round data without waiting
-      
     } catch (insightsError) {
-      // If there's an error generating insights, log it but don't fail the round completion
       console.error("[completeRound] Failed to trigger insights generation:", insightsError);
-      // The error is caught here so it doesn't affect the round completion process
     }
 
-    // Return the updated round data regardless of insights generation status
     return data;
   } catch (error) {
     console.error("[completeRound] Error in complete round process:", error);

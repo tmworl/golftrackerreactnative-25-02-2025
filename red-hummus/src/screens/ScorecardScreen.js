@@ -13,8 +13,7 @@ import theme from "../ui/theme";
  * 
  * Displays a detailed scorecard for a completed round.
  * Shows hole-by-hole scores and outcome breakdowns.
- * Updated to use the new shot outcome categories: "On Target", "Slightly Off", "Recovery Needed"
- * Allows navigation back to home screen.
+ * Updated to work with the new shots table structure.
  */
 export default function ScorecardScreen() {
   const navigation = useNavigation();
@@ -25,11 +24,10 @@ export default function ScorecardScreen() {
   // State variables for scorecard data
   const [roundData, setRoundData] = useState(null);
   const [courseData, setCourseData] = useState(null);
-  const [shotsData, setShotsData] = useState(null);
-  const [holeResults, setHoleResults] = useState({});
+  const [holesData, setHolesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Define the new outcome categories - used throughout the component
+  // Define the outcome categories - used throughout the component
   const outcomes = ["On Target", "Slightly Off", "Recovery Needed"];
 
   // Fetch all data for this round when component mounts
@@ -54,7 +52,8 @@ export default function ScorecardScreen() {
             score,
             gross_shots,
             created_at,
-            is_complete
+            is_complete,
+            selected_tee_name
           `)
           .eq("id", roundId)
           .single();
@@ -70,7 +69,7 @@ export default function ScorecardScreen() {
         // 2. Fetch the course data
         const { data: course, error: courseError } = await supabase
           .from("courses")
-          .select("id, name, par")
+          .select("id, name, par, holes")
           .eq("id", round.course_id)
           .single();
           
@@ -82,50 +81,24 @@ export default function ScorecardScreen() {
         }
         setCourseData(course);
         
-        // 3. Fetch all shots for this round
-        const { data: shots, error: shotsError } = await supabase
+        // 3. Fetch all hole data for this round using new table structure
+        const { data: holes, error: holesError } = await supabase
           .from("shots")
-          .select("id, round_id, hole_number, shot_type, result")
-          .eq("round_id", roundId);
+          .select("hole_number, hole_data, total_score")
+          .eq("round_id", roundId)
+          .order("hole_number");
           
-        console.log("Shots count:", shots?.length);
+        console.log("Holes data count:", holes?.length);
         
-        if (shotsError) {
-          console.error("Error fetching shots:", shotsError);
-          throw shotsError;
-        }
-        setShotsData(shots);
-        
-        // 4. Process the shots data to organize by hole
-        const holeData = {};
-        const totalHoles = 18;
-        
-        // Initialize hole data structure with new outcome categories
-        for (let i = 1; i <= totalHoles; i++) {
-          holeData[i] = {
-            score: 0,
-            outcomes: {
-              "On Target": 0,
-              "Slightly Off": 0,
-              "Recovery Needed": 0
-            }
-          };
+        if (holesError) {
+          console.error("Error fetching holes data:", holesError);
+          throw holesError;
         }
         
-        // Count shots per hole and by outcome using new categories
-        shots.forEach(shot => {
-          const holeNum = shot.hole_number;
-          
-          // Count total shots for score
-          holeData[holeNum].score += 1;
-          
-          // Count by outcome - make sure it matches one of our categories
-          if (shot.result in holeData[holeNum].outcomes) {
-            holeData[holeNum].outcomes[shot.result] += 1;
-          }
-        });
+        // Process the holes data to get outcome breakdowns for display
+        const processedHoles = processHolesData(holes, round.selected_tee_name?.toLowerCase());
+        setHolesData(processedHoles);
         
-        setHoleResults(holeData);
       } catch (error) {
         console.error("Error fetching scorecard data:", error);
       } finally {
@@ -136,19 +109,77 @@ export default function ScorecardScreen() {
     fetchRoundData();
   }, [roundId]);
 
-  // Calculate front nine, back nine, and total scores with new outcome categories
+  /**
+   * Process the holes data to get outcome breakdowns
+   * This converts the JSONB hole_data into a format for display
+   */
+  const processHolesData = (holes, selectedTee) => {
+    const processed = [];
+    
+    // Default empty data for all 18 holes
+    for (let i = 1; i <= 18; i++) {
+      processed[i] = {
+        number: i,
+        score: 0,
+        outcomes: {
+          "On Target": 0,
+          "Slightly Off": 0,
+          "Recovery Needed": 0
+        }
+      };
+    }
+    
+    // Process each hole with data
+    holes.forEach(hole => {
+      const holeNum = hole.hole_number;
+      const holeData = hole.hole_data;
+      
+      // Skip if missing data
+      if (!holeData || !holeData.shots || !Array.isArray(holeData.shots)) {
+        return;
+      }
+      
+      // Count by outcome
+      const outcomes = {
+        "On Target": 0,
+        "Slightly Off": 0,
+        "Recovery Needed": 0
+      };
+      
+      // Count shots by outcome
+      holeData.shots.forEach(shot => {
+        if (outcomes[shot.result] !== undefined) {
+          outcomes[shot.result]++;
+        }
+      });
+      
+      // Update processed data
+      processed[holeNum] = {
+        number: holeNum,
+        score: hole.total_score || holeData.shots.length,
+        par: holeData.par,
+        distance: holeData.distance,
+        outcomes: outcomes
+      };
+    });
+    
+    // Return only valid holes (1-18)
+    return processed.filter((_, index) => index > 0 && index <= 18);
+  };
+
+  // Calculate front nine, back nine, and total scores with outcome breakdowns
   const calculateTotals = () => {
     let frontNine = 0;
     let backNine = 0;
     
-    // Initialize outcome totals with new categories
+    // Initialize outcome totals
     let totalOnTarget = 0;
     let totalSlightlyOff = 0; 
     let totalRecoveryNeeded = 0;
     
-    Object.keys(holeResults).forEach(hole => {
-      const holeNum = parseInt(hole);
-      const score = holeResults[hole].score;
+    holesData.forEach(hole => {
+      const holeNum = hole.number;
+      const score = hole.score || 0;
       
       // Add to front or back nine
       if (holeNum <= 9) {
@@ -157,10 +188,10 @@ export default function ScorecardScreen() {
         backNine += score;
       }
       
-      // Count outcomes using new categories
-      totalOnTarget += holeResults[hole].outcomes["On Target"];
-      totalSlightlyOff += holeResults[hole].outcomes["Slightly Off"];
-      totalRecoveryNeeded += holeResults[hole].outcomes["Recovery Needed"];
+      // Count outcomes
+      totalOnTarget += hole.outcomes["On Target"] || 0;
+      totalSlightlyOff += hole.outcomes["Slightly Off"] || 0;
+      totalRecoveryNeeded += hole.outcomes["Recovery Needed"] || 0;
     });
     
     return {
@@ -175,7 +206,7 @@ export default function ScorecardScreen() {
     };
   };
 
-  // Get color for outcome column headers - updated colors to match outcome meaning
+  // Get color for outcome column headers
   const getOutcomeColor = (outcome) => {
     switch (outcome) {
       case "On Target":
@@ -244,7 +275,7 @@ export default function ScorecardScreen() {
             <Text style={[styles.holeColumn, styles.headerText]}>Hole</Text>
             <Text style={[styles.parColumn, styles.headerText]}>Par</Text>
             <Text style={[styles.scoreColumn, styles.headerText]}>Score</Text>
-            {/* Updated outcome columns with new categories */}
+            {/* Outcome columns with new categories */}
             <Text style={[styles.outcomeColumn, styles.headerText, {backgroundColor: getOutcomeColor("On Target")}]}>
               On Target
             </Text>
@@ -257,22 +288,32 @@ export default function ScorecardScreen() {
           </View>
           
           {/* Hole rows - Front Nine */}
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(hole => (
-            <View key={`hole-${hole}`} style={styles.holeRow}>
-              <Text style={styles.holeColumn}>{hole}</Text>
-              <Text style={styles.parColumn}>{courseData?.par ? Math.floor(courseData.par / 18) : "-"}</Text>
-              <Text style={styles.scoreColumn}>{holeResults[hole]?.score || 0}</Text>
-              {/* Updated outcome values for each category */}
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["On Target"] || 0}</Text>
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["Slightly Off"] || 0}</Text>
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["Recovery Needed"] || 0}</Text>
-            </View>
-          ))}
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(holeNum => {
+            // Find this hole's data
+            const holeData = holesData.find(h => h.number === holeNum) || {
+              number: holeNum,
+              score: 0,
+              par: getCourseHolePar(courseData, holeNum),
+              outcomes: { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 }
+            };
+            
+            return (
+              <View key={`hole-${holeNum}`} style={styles.holeRow}>
+                <Text style={styles.holeColumn}>{holeNum}</Text>
+                <Text style={styles.parColumn}>{holeData.par || "-"}</Text>
+                <Text style={styles.scoreColumn}>{holeData.score || 0}</Text>
+                {/* Outcome values */}
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["On Target"] || 0}</Text>
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["Slightly Off"] || 0}</Text>
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["Recovery Needed"] || 0}</Text>
+              </View>
+            );
+          })}
           
           {/* Out (Front Nine) totals */}
           <View style={[styles.holeRow, styles.totalRow]}>
             <Text style={[styles.holeColumn, styles.totalText]}>Out</Text>
-            <Text style={[styles.parColumn, styles.totalText]}>{courseData?.par ? Math.floor(courseData.par / 2) : "-"}</Text>
+            <Text style={[styles.parColumn, styles.totalText]}>{calculateCoursePar(courseData, 1, 9)}</Text>
             <Text style={[styles.scoreColumn, styles.totalText]}>{totals.frontNine}</Text>
             <Text style={styles.outcomeColumn}></Text>
             <Text style={styles.outcomeColumn}></Text>
@@ -280,22 +321,32 @@ export default function ScorecardScreen() {
           </View>
           
           {/* Hole rows - Back Nine */}
-          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map(hole => (
-            <View key={`hole-${hole}`} style={styles.holeRow}>
-              <Text style={styles.holeColumn}>{hole}</Text>
-              <Text style={styles.parColumn}>{courseData?.par ? Math.floor(courseData.par / 18) : "-"}</Text>
-              <Text style={styles.scoreColumn}>{holeResults[hole]?.score || 0}</Text>
-              {/* Updated outcome values for each category */}
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["On Target"] || 0}</Text>
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["Slightly Off"] || 0}</Text>
-              <Text style={styles.outcomeColumn}>{holeResults[hole]?.outcomes["Recovery Needed"] || 0}</Text>
-            </View>
-          ))}
+          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map(holeNum => {
+            // Find this hole's data
+            const holeData = holesData.find(h => h.number === holeNum) || {
+              number: holeNum,
+              score: 0,
+              par: getCourseHolePar(courseData, holeNum),
+              outcomes: { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 }
+            };
+            
+            return (
+              <View key={`hole-${holeNum}`} style={styles.holeRow}>
+                <Text style={styles.holeColumn}>{holeNum}</Text>
+                <Text style={styles.parColumn}>{holeData.par || "-"}</Text>
+                <Text style={styles.scoreColumn}>{holeData.score || 0}</Text>
+                {/* Outcome values */}
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["On Target"] || 0}</Text>
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["Slightly Off"] || 0}</Text>
+                <Text style={styles.outcomeColumn}>{holeData.outcomes["Recovery Needed"] || 0}</Text>
+              </View>
+            );
+          })}
           
           {/* In (Back Nine) totals */}
           <View style={[styles.holeRow, styles.totalRow]}>
             <Text style={[styles.holeColumn, styles.totalText]}>In</Text>
-            <Text style={[styles.parColumn, styles.totalText]}>{courseData?.par ? Math.floor(courseData.par / 2) : "-"}</Text>
+            <Text style={[styles.parColumn, styles.totalText]}>{calculateCoursePar(courseData, 10, 18)}</Text>
             <Text style={[styles.scoreColumn, styles.totalText]}>{totals.backNine}</Text>
             <Text style={styles.outcomeColumn}></Text>
             <Text style={styles.outcomeColumn}></Text>
@@ -342,6 +393,37 @@ export default function ScorecardScreen() {
       </View>
     </Layout>
   );
+}
+
+/**
+ * Helper function to get par for a specific hole from course data
+ */
+function getCourseHolePar(courseData, holeNumber) {
+  if (!courseData || !courseData.holes || !Array.isArray(courseData.holes)) {
+    return null;
+  }
+  
+  const holeData = courseData.holes.find(h => h.number === holeNumber);
+  return holeData ? holeData.par_men : null;
+}
+
+/**
+ * Helper function to calculate par for a range of holes
+ */
+function calculateCoursePar(courseData, startHole, endHole) {
+  if (!courseData || !courseData.holes || !Array.isArray(courseData.holes)) {
+    return null;
+  }
+  
+  let totalPar = 0;
+  for (let i = startHole; i <= endHole; i++) {
+    const holePar = getCourseHolePar(courseData, i);
+    if (holePar) {
+      totalPar += holePar;
+    }
+  }
+  
+  return totalPar || null;
 }
 
 // Styles with Material Design guidelines

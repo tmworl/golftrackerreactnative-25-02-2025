@@ -1,21 +1,30 @@
 // src/screens/TrackerScreen.js
 
 import React, { useState, useEffect, useContext, useCallback } from "react";
-import { View, Text, Button, StyleSheet, Alert, ActivityIndicator, ScrollView, SafeAreaView } from "react-native";
+import { 
+  View, 
+  Text, 
+  Button, 
+  StyleSheet, 
+  Alert, 
+  ActivityIndicator, 
+  ScrollView, 
+  SafeAreaView 
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
-import { createRound, insertShots, completeRound } from "../services/roundservice";
+import { createRound, saveHoleData, completeRound } from "../services/roundservice";
 import ShotTable from "../components/ShotTable";
 import HoleNavigator from "../components/HoleNavigator";
 import { AuthContext } from "../context/AuthContext";
-import { findOrCreateCourse } from "../services/courseService";
+import AppText from "../components/AppText";
 
 /**
  * TrackerScreen Component
  * 
  * This screen allows users to track shots during a round of golf.
- * Uses the direct approach to save shots - no data transformation needed.
+ * Uses the new data structure for tracking and saving hole data.
  */
 export default function TrackerScreen({ navigation }) {
   // Get the authenticated user from context
@@ -25,34 +34,101 @@ export default function TrackerScreen({ navigation }) {
   const [currentHole, setCurrentHole] = useState(1);
   const [totalHoles] = useState(18); // Standard golf round is 18 holes
   
-  // Initialize shot data for all holes with new shot types and outcomes
-  // This matches exactly what will be saved to the database
-  const initialShotState = {};
+  // Initialize hole data structure for all holes
+  const initialHoleState = {};
   for (let i = 1; i <= 18; i++) {
-    initialShotState[i] = {
-      "Tee Shot": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Long Shot": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Approach": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Chip": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Putts": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Sand": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
-      "Penalties": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 }
+    initialHoleState[i] = {
+      // Hole characteristics (will be filled from course data)
+      par: null,
+      distance: null,
+      index: null,
+      features: [],
+      
+      // Shot data
+      shots: [], // Array of { type, result, timestamp }
+      
+      // Shot counts for ShotTable compatibility
+      shotCounts: {
+        "Tee Shot": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Long Shot": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Approach": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Chip": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Putts": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Sand": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 },
+        "Penalties": { "On Target": 0, "Slightly Off": 0, "Recovery Needed": 0 }
+      }
     };
   }
   
   // Main state variables for the component
-  const [holeShots, setHoleShots] = useState(initialShotState); // Tracks shots for all holes
+  const [holeData, setHoleData] = useState(initialHoleState); // Tracks all data for all holes
   const [round, setRound] = useState(null);                    // Current round data
   const [activeColumn, setActiveColumn] = useState("On Target"); // Currently selected outcome column
   const [loading, setLoading] = useState(false);                // Loading state for async operations
   const [course, setCourse] = useState(null);                   // Current course data
+  const [courseDetails, setCourseDetails] = useState(null);     // Detailed course data from database
+
+  /**
+   * Save the current hole data to AsyncStorage
+   */
+  const saveCurrentHoleToStorage = useCallback(async () => {
+    if (!round) return;
+    
+    try {
+      // Get existing stored hole data or initialize empty object
+      const existingDataStr = await AsyncStorage.getItem(`round_${round.id}_holes`);
+      const existingData = existingDataStr ? JSON.parse(existingDataStr) : {};
+      
+      // Update with current hole data
+      existingData[currentHole] = holeData[currentHole];
+      
+      // Save back to AsyncStorage
+      await AsyncStorage.setItem(`round_${round.id}_holes`, JSON.stringify(existingData));
+      console.log(`Saved hole ${currentHole} data to AsyncStorage`);
+    } catch (error) {
+      console.error("Error saving hole data to AsyncStorage:", error);
+    }
+  }, [round, currentHole, holeData]);
+
+  /**
+   * Load hole data from AsyncStorage
+   */
+  const loadHoleDataFromStorage = useCallback(async () => {
+    if (!round) return;
+    
+    try {
+      const storedDataStr = await AsyncStorage.getItem(`round_${round.id}_holes`);
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        
+        // Merge with current state (only update holes that have stored data)
+        setHoleData(prevData => {
+          const newData = { ...prevData };
+          
+          // For each hole in stored data, update the state
+          Object.keys(storedData).forEach(holeNum => {
+            newData[holeNum] = storedData[holeNum];
+          });
+          
+          return newData;
+        });
+        
+        console.log("Loaded hole data from AsyncStorage");
+      }
+    } catch (error) {
+      console.error("Error loading hole data from AsyncStorage:", error);
+    }
+  }, [round]);
 
   /**
    * Function to navigate to the next hole
-   * If we're on the last hole, prompt to finish the round
+   * Saves current hole data before moving
    */
-  const handleNextHole = useCallback(() => {
+  const handleNextHole = useCallback(async () => {
     if (currentHole < totalHoles) {
+      // Save current hole data to AsyncStorage
+      await saveCurrentHoleToStorage();
+      
       // Move to the next hole
       setCurrentHole(prev => prev + 1);
     } else {
@@ -70,20 +146,72 @@ export default function TrackerScreen({ navigation }) {
         ]
       );
     }
-  }, [currentHole, totalHoles]);
+  }, [currentHole, totalHoles, saveCurrentHoleToStorage]);
 
   /**
    * Function to navigate to the previous hole
+   * Saves current hole data before moving
    */
-  const handlePreviousHole = useCallback(() => {
+  const handlePreviousHole = useCallback(async () => {
     if (currentHole > 1) {
+      // Save current hole data to AsyncStorage
+      await saveCurrentHoleToStorage();
+      
+      // Move to the previous hole
       setCurrentHole(prev => prev - 1);
     }
-  }, [currentHole]);
+  }, [currentHole, saveCurrentHoleToStorage]);
+
+  /**
+   * Update hole information when courseDetails or currentHole changes
+   */
+  useEffect(() => {
+    // Update hole information when courseDetails is available
+    if (courseDetails && courseDetails.holes) {
+      // Find information for the current hole
+      const currentHoleInfo = courseDetails.holes.find(
+        hole => hole.number === currentHole
+      );
+      
+      if (currentHoleInfo) {
+        // Get selected tee information
+        const selectedTeeName = round?.selected_tee_name?.toLowerCase() || course?.teeName?.toLowerCase();
+        
+        // Get distance for selected tee
+        let distance = null;
+        if (currentHoleInfo.distances && selectedTeeName && currentHoleInfo.distances[selectedTeeName]) {
+          distance = currentHoleInfo.distances[selectedTeeName];
+        } else if (currentHoleInfo.distances) {
+          // Fallback to first available tee
+          const firstTee = Object.keys(currentHoleInfo.distances)[0];
+          if (firstTee) {
+            distance = currentHoleInfo.distances[firstTee];
+          }
+        }
+        
+        // Update hole data with course information
+        setHoleData(prevData => {
+          const newData = { ...prevData };
+          
+          // Only update if not already set
+          if (!newData[currentHole].par) {
+            newData[currentHole] = {
+              ...newData[currentHole],
+              par: currentHoleInfo.par_men || null,
+              distance: distance || null,
+              index: currentHoleInfo.index_men || null,
+              features: currentHoleInfo.features || []
+            };
+          }
+          
+          return newData;
+        });
+      }
+    }
+  }, [courseDetails, currentHole, round, course]);
 
   /**
    * Initialize round on component mount
-   * This effect runs once when the component is first loaded
    */
   useEffect(() => {
     const initializeRound = async () => {
@@ -94,23 +222,87 @@ export default function TrackerScreen({ navigation }) {
         }
         
         // Get the selected course data from AsyncStorage
-        const storedCourse = await AsyncStorage.getItem("selectedCourse");
-        const courseData = storedCourse ? JSON.parse(storedCourse) : { name: "Pebble Beach (White Tees)" };
+        const storedCourseData = await AsyncStorage.getItem("selectedCourse");
+        if (!storedCourseData) {
+          console.error("No course selected. Cannot start a round.");
+          navigation.goBack();
+          return;
+        }
+        
+        const courseData = JSON.parse(storedCourseData);
         setCourse(courseData);
         
-        // Find or create the course in the database
-        const courseRecord = await findOrCreateCourse(courseData);
-        console.log("Course record obtained:", courseRecord);
+        console.log("Starting round with course and tee:", courseData);
         
-        // Create a new round in the database
-        const newRound = await createRound(user.id, courseRecord.id);
-        console.log("New round created:", newRound);
+        // Check if there's an in-progress round in AsyncStorage
+        const existingRoundStr = await AsyncStorage.getItem("currentRound");
+        let roundData;
         
-        // Set the round in state and store in AsyncStorage
-        setRound(newRound);
-        await AsyncStorage.setItem("currentRound", JSON.stringify(newRound));
+        if (existingRoundStr) {
+          // Use existing round
+          roundData = JSON.parse(existingRoundStr);
+          console.log("Resuming existing round:", roundData);
+          setRound(roundData);
+        } else {
+          // Create a new round
+          roundData = await createRound(
+            user.id,
+            courseData.id,
+            courseData.teeId,
+            courseData.teeName
+          );
+          
+          console.log("New round created:", roundData);
+          setRound(roundData);
+          
+          // Store the round in AsyncStorage
+          await AsyncStorage.setItem("currentRound", JSON.stringify(roundData));
+        }
+        
+        // Get supabase from the service
+        const { supabase } = require("../services/supabase");
+        
+        // Get full course details from database
+        try {
+          const { data: fullCourseData, error } = await supabase
+            .from("courses")
+            .select("*")
+            .eq("id", courseData.id)
+            .single();
+            
+          if (error) {
+            console.error("Error fetching course details:", error);
+          } else if (fullCourseData) {
+            console.log("Found full course details:", fullCourseData.name);
+            setCourseDetails(fullCourseData);
+          }
+        } catch (error) {
+          console.error("Error fetching course details:", error);
+        }
+        
+        // Load any existing hole data from AsyncStorage
+        if (roundData) {
+          const storedHolesStr = await AsyncStorage.getItem(`round_${roundData.id}_holes`);
+          if (storedHolesStr) {
+            const storedHoles = JSON.parse(storedHolesStr);
+            
+            // Merge with initial state
+            setHoleData(prevData => {
+              const newData = { ...prevData };
+              
+              // Update each hole that has stored data
+              Object.keys(storedHoles).forEach(holeNum => {
+                newData[holeNum] = storedHoles[holeNum];
+              });
+              
+              return newData;
+            });
+            
+            console.log("Loaded hole data from storage");
+          }
+        }
       } catch (error) {
-        console.error("Error creating round:", error);
+        console.error("Error initializing round:", error);
         Alert.alert(
           "Error",
           "There was a problem starting your round. Please try again."
@@ -119,112 +311,177 @@ export default function TrackerScreen({ navigation }) {
     };
     
     initializeRound();
-  }, [user]);
+  }, [user, navigation]);
 
   /**
    * Function to add a shot of a specific type and outcome
-   * @param {string} type - The shot type (e.g., "Tee Shot", "Approach")
-   * @param {string} outcome - The shot outcome (e.g., "On Target", "Slightly Off")
    */
   const addShot = useCallback((type, outcome) => {
     console.log(`Adding ${outcome} ${type} shot for hole ${currentHole}`);
     
-    setHoleShots(prev => {
-      // Create a deep copy to avoid state mutation issues
-      const newState = JSON.parse(JSON.stringify(prev));
+    setHoleData(prevData => {
+      const newData = { ...prevData };
+      const currentHoleInfo = { ...newData[currentHole] };
       
-      // Increment the shot count for this type and outcome
-      if (newState[currentHole] && newState[currentHole][type]) {
-        newState[currentHole][type][outcome] += 1;
-      } else {
-        console.warn(`Unable to add shot: Invalid path [${currentHole}][${type}][${outcome}]`);
-      }
+      // Add to shots array
+      currentHoleInfo.shots.push({
+        type,
+        result: outcome,
+        timestamp: new Date().toISOString()
+      });
       
-      return newState;
+      // Update shot counts for ShotTable compatibility
+      currentHoleInfo.shotCounts[type][outcome] += 1;
+      
+      // Update hole data
+      newData[currentHole] = currentHoleInfo;
+      
+      return newData;
     });
   }, [currentHole]);
 
   /**
    * Function to remove a shot of a specific type and outcome
-   * @param {string} type - The shot type (e.g., "Tee Shot", "Approach")
-   * @param {string} outcome - The shot outcome (e.g., "On Target", "Slightly Off")
    */
   const removeShot = useCallback((type, outcome) => {
     console.log(`Removing ${outcome} ${type} shot for hole ${currentHole}`);
     
-    setHoleShots(prev => {
-      // Create a deep copy to avoid state mutation issues
-      const newState = JSON.parse(JSON.stringify(prev));
+    setHoleData(prevData => {
+      const newData = { ...prevData };
+      const currentHoleInfo = { ...newData[currentHole] };
       
-      // Decrement the shot count but not below zero
-      if (newState[currentHole] && newState[currentHole][type]) {
-        newState[currentHole][type][outcome] = Math.max(0, newState[currentHole][type][outcome] - 1);
-      } else {
-        console.warn(`Unable to remove shot: Invalid path [${currentHole}][${type}][${outcome}]`);
+      // Only proceed if there are shots to remove
+      if (currentHoleInfo.shotCounts[type][outcome] <= 0) {
+        return prevData;
       }
       
-      return newState;
+      // Find the index of the last shot of this type and outcome
+      const shotIndex = [...currentHoleInfo.shots].reverse().findIndex(
+        shot => shot.type === type && shot.result === outcome
+      );
+      
+      if (shotIndex !== -1) {
+        // Convert the reversed index to the actual index
+        const actualIndex = currentHoleInfo.shots.length - 1 - shotIndex;
+        
+        // Remove the shot from the shots array
+        currentHoleInfo.shots.splice(actualIndex, 1);
+        
+        // Update the shot counts for ShotTable compatibility
+        currentHoleInfo.shotCounts[type][outcome] -= 1;
+        
+        // Update the hole data
+        newData[currentHole] = currentHoleInfo;
+      }
+      
+      return newData;
     });
   }, [currentHole]);
 
   /**
-   * Handle completing a hole or the entire round
-   * This saves the shots for the current hole and either moves to the next hole
-   * or completes the round if we're on the last hole
+   * Complete a hole and save data to AsyncStorage
+   */
+  const completeHole = async () => {
+    try {
+      setLoading(true);
+      
+      // Save current hole data to AsyncStorage
+      await saveCurrentHoleToStorage();
+      
+      // Move to next hole if not on last hole
+      if (currentHole < totalHoles) {
+        setCurrentHole(prev => prev + 1);
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error("Error completing hole:", error);
+      setLoading(false);
+      Alert.alert("Error", "There was a problem saving your data.");
+    }
+  };
+
+  /**
+   * Complete the round - save all hole data to database
    */
   const finishRound = async () => {
     try {
       // Show loading state
       setLoading(true);
       
-      // 1. Save shots for the current hole - pass shot counts directly to insertShots
-      if (round) {
-        console.log("Saving shots for hole:", currentHole, holeShots[currentHole]);
-        const shotResponse = await insertShots(round.id, currentHole, holeShots[currentHole]);
-        console.log("Shots inserted for hole", currentHole, shotResponse);
+      // Save current hole first
+      await saveCurrentHoleToStorage();
+      
+      // Get all stored hole data
+      const storedDataStr = await AsyncStorage.getItem(`round_${round.id}_holes`);
+      if (!storedDataStr) {
+        throw new Error("No hole data found for this round");
       }
       
-      if (currentHole < totalHoles) {
-        // If not the last hole, move to the next hole
-        handleNextHole();
-        setLoading(false);
-      } else {
-        try {
-          if (round) {
-            // 2. Complete the round - this will calculate total shots and score
-            await completeRound(round.id);
-            console.log("Round completed successfully");
-            
-            // 3. Clear the current round data from AsyncStorage
-            await AsyncStorage.removeItem("currentRound");
-            
-            // 4. Navigate to the scorecard screen with the round ID
-            navigation.navigate("ScorecardScreen", { roundId: round.id });
-          }
-        } catch (error) {
-          console.error("Error completing round:", error);
-          Alert.alert(
-            "Error",
-            "There was a problem completing your round. Please try again."
-          );
+      const storedHoleData = JSON.parse(storedDataStr);
+      
+      // Save each hole to the database
+      for (let holeNum = 1; holeNum <= totalHoles; holeNum++) {
+        // Skip holes with no data
+        if (!storedHoleData[holeNum] || storedHoleData[holeNum].shots.length === 0) {
+          continue;
         }
+        
+        const holeInfo = storedHoleData[holeNum];
+        const totalScore = holeInfo.shots.length;
+        
+        // Save hole data to database
+        await saveHoleData(
+          round.id,
+          holeNum,
+          {
+            par: holeInfo.par,
+            distance: holeInfo.distance,
+            index: holeInfo.index,
+            features: holeInfo.features,
+            shots: holeInfo.shots
+          },
+          totalScore
+        );
+        
+        console.log(`Hole ${holeNum} data saved to database`);
       }
+      
+      // Complete the round
+      await completeRound(round.id);
+      console.log("Round completed successfully");
+      
+      // Clear AsyncStorage data for this round
+      await AsyncStorage.removeItem(`round_${round.id}_holes`);
+      await AsyncStorage.removeItem("currentRound");
+      
+      // Navigate to scorecard
+      navigation.navigate("ScorecardScreen", { roundId: round.id });
     } catch (error) {
-      console.error("Error saving shots:", error);
+      console.error("Error finishing round:", error);
+      setLoading(false);
       Alert.alert(
         "Error",
-        "There was a problem saving your shots. Please try again."
+        "There was a problem completing your round. Please try again."
       );
-    } finally {
-      setLoading(false);
     }
   };
+
+  // Calculate total score for current hole
+  const currentHoleScore = holeData[currentHole]?.shots?.length || 0;
+  const currentHolePar = holeData[currentHole]?.par || 0;
+  const scoreRelativeToPar = currentHoleScore - currentHolePar;
+  const scoreDisplay = scoreRelativeToPar === 0 
+    ? "Par" 
+    : scoreRelativeToPar > 0 
+      ? `+${scoreRelativeToPar}` 
+      : scoreRelativeToPar;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Use ScrollView to allow scrolling on smaller devices if needed */}
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Only show the hole navigator - removed course name */}
+        {/* Hole navigator */}
         <View style={styles.navigatorContainer}>
           <HoleNavigator
             currentHole={currentHole}
@@ -232,6 +489,13 @@ export default function TrackerScreen({ navigation }) {
             onNextHole={handleNextHole}
             totalHoles={totalHoles}
           />
+        </View>
+        
+        {/* Par and Yardage information */}
+        <View style={styles.holeInfoContainer}>
+          <AppText variant="body" style={styles.holeInfoText}>
+            Par {holeData[currentHole]?.par || "?"} • {holeData[currentHole]?.distance || "?"} Yards
+          </AppText>
         </View>
         
         {/* Show loading indicator when saving data */}
@@ -242,10 +506,31 @@ export default function TrackerScreen({ navigation }) {
           </View>
         ) : (
           <View style={styles.contentContainer}>
-            {/* Shot tracking table - optimized for space with color coding */}
+            {/* Current score display */}
+            <View style={styles.scoreContainer}>
+              <View style={styles.scoreBox}>
+                <AppText variant="subtitle" style={styles.scoreLabel}>Current Score</AppText>
+                <AppText variant="title" style={styles.scoreValue}>{currentHoleScore}</AppText>
+                {currentHolePar > 0 && (
+                  <AppText 
+                    variant="body" 
+                    style={[
+                      styles.parComparison,
+                      scoreRelativeToPar > 0 ? styles.overPar : 
+                      scoreRelativeToPar < 0 ? styles.underPar : 
+                      styles.atPar
+                    ]}
+                  >
+                    {scoreDisplay}
+                  </AppText>
+                )}
+              </View>
+            </View>
+            
+            {/* Shot tracking table */}
             <View style={styles.tableContainer}>
               <ShotTable
-                shotCounts={holeShots[currentHole]}
+                shotCounts={holeData[currentHole].shotCounts}
                 activeColumn={activeColumn}
                 setActiveColumn={setActiveColumn}
                 addShot={addShot}
@@ -257,7 +542,7 @@ export default function TrackerScreen({ navigation }) {
             <View style={styles.buttonContainer}>
               <Button 
                 title={currentHole === totalHoles ? "Complete Round" : "Complete Hole"} 
-                onPress={finishRound}
+                onPress={currentHole === totalHoles ? finishRound : completeHole}
                 color={theme.colors.primary} 
               />
             </View>
@@ -268,7 +553,6 @@ export default function TrackerScreen({ navigation }) {
   );
 }
 
-// Styles for the component - optimized for iPhone screens with ability to scroll if needed
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -276,13 +560,54 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    paddingHorizontal: 8, // Reduced horizontal padding to maximize width
-    paddingVertical: 8,   // Enough padding for visual comfort
-    minHeight: '100%',    // Allows scrolling on small screens if needed
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    minHeight: '100%',
   },
   navigatorContainer: {
-    marginBottom: 12,     // Adequate margin for visual separation
-    alignItems: 'center', // Center the navigator
+    marginBottom: 6,
+    alignItems: 'center',
+  },
+  holeInfoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 4,
+    padding: 4,
+  },
+  holeInfoText: {
+    color: '#444',
+  },
+  scoreContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  scoreBox: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  scoreLabel: {
+    color: '#666',
+    marginBottom: 4,
+  },
+  scoreValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  parComparison: {
+    marginTop: 4,
+  },
+  overPar: {
+    color: '#d32f2f', // Red for over par
+  },
+  underPar: {
+    color: '#388e3c', // Green for under par
+  },
+  atPar: {
+    color: '#666', // Gray for at par
   },
   loadingContainer: {
     flex: 1,
@@ -297,14 +622,14 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    justifyContent: "space-between", // Space between table and button
+    justifyContent: "space-between",
   },
   tableContainer: {
-    width: '100%',        // Full width
-    marginBottom: 12,     // Margin before button
+    width: '100%',
+    marginBottom: 12,
   },
   buttonContainer: {
-    marginBottom: 8,      // Small margin at bottom
-    paddingHorizontal: 8, // Padding for button
+    marginBottom: 8,
+    paddingHorizontal: 8,
   }
 });

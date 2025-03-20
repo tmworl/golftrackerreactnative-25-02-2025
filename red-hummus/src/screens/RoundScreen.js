@@ -12,10 +12,8 @@ import AppText from "../components/AppText";
 /**
  * RoundsScreen Component
  * 
- * Displays a list of all rounds with detailed information.
+ * Displays a list of all completed rounds with detailed information.
  * Each round card is touchable and navigates to the ScorecardScreen.
- * 
- * Note: Title "Your Rounds" is now in the navigation header instead of in-screen.
  */
 export default function RoundsScreen() {
   const navigation = useNavigation();
@@ -30,7 +28,8 @@ export default function RoundsScreen() {
       try {
         setLoading(true);
         
-        // Fetch all rounds with scores and shots data
+        // Fetch all COMPLETED rounds with scores and shots data
+        // IMPORTANT CHANGE: Added filter for is_complete = true
         const { data, error } = await supabase
           .from("rounds")
           .select(`
@@ -43,6 +42,7 @@ export default function RoundsScreen() {
             is_complete
           `)
           .eq("profile_id", user.id)
+          .eq("is_complete", true) // Only get completed rounds
           .order("created_at", { ascending: false });
           
         if (error) {
@@ -118,35 +118,33 @@ export default function RoundsScreen() {
         </AppText>
       </View>
       
-      {/* Stats row - only show for completed rounds */}
-      {item.isComplete && (
-        <View style={styles.cardStatsRow}>
-          {/* Gross shots (more prominent) */}
-          <View style={styles.statContainer}>
-            <AppText variant="subtitle" bold>
-              {item.grossShots !== null ? item.grossShots : "-"}
-            </AppText>
-            <AppText variant="caption">Total</AppText>
-          </View>
-          
-          {/* Divider */}
-          <View style={styles.statDivider} />
-          
-          {/* Score to par (less prominent) */}
-          <View style={styles.statContainer}>
-            <AppText 
-              variant="body" 
-              semibold 
-              color={theme.colors.primary}
-            >
-              {item.score !== null 
-                ? (item.score > 0 ? `+${item.score}` : item.score) 
-                : "-"}
-            </AppText>
-            <AppText variant="caption">To Par</AppText>
-          </View>
+      {/* Stats row */}
+      <View style={styles.cardStatsRow}>
+        {/* Gross shots (more prominent) */}
+        <View style={styles.statContainer}>
+          <AppText variant="subtitle" bold>
+            {item.grossShots !== null ? item.grossShots : "-"}
+          </AppText>
+          <AppText variant="caption">Total</AppText>
         </View>
-      )}
+        
+        {/* Divider */}
+        <View style={styles.statDivider} />
+        
+        {/* Score to par (less prominent) */}
+        <View style={styles.statContainer}>
+          <AppText 
+            variant="body" 
+            semibold 
+            color={theme.colors.primary}
+          >
+            {item.score !== null 
+              ? (item.score > 0 ? `+${item.score}` : item.score) 
+              : "-"}
+          </AppText>
+          <AppText variant="caption">To Par</AppText>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
@@ -170,7 +168,7 @@ export default function RoundsScreen() {
               italic 
               style={styles.emptyText}
             >
-              No rounds yet. Start a round from the Home tab!
+              No completed rounds yet. Start a round from the Home tab!
             </AppText>
           </View>
         )}
