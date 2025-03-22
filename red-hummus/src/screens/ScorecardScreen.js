@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, StackActions } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../services/supabase";
 import Layout from "../ui/Layout";
@@ -14,12 +14,13 @@ import theme from "../ui/theme";
  * Displays a detailed scorecard for a completed round.
  * Shows hole-by-hole scores and outcome breakdowns.
  * Updated to work with the new shots table structure.
+ * Enhanced navigation to provide cleaner flow back to home screen.
  */
 export default function ScorecardScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   // Get roundId from navigation params
-  const { roundId } = route.params || {};
+  const { roundId, fromTracker } = route.params || {};
   
   // State variables for scorecard data
   const [roundData, setRoundData] = useState(null);
@@ -220,14 +221,28 @@ export default function ScorecardScreen() {
     }
   };
 
-  // Navigate back to previous screen
+  /**
+   * Navigate back to previous screen
+   * Enhanced to check if coming from tracker or rounds
+   */
   const handleBack = () => {
-    navigation.goBack();
+    // If we came from the tracker, we should go home instead of back
+    if (fromTracker) {
+      handleGoHome();
+    } else {
+      // Otherwise normal back behavior (likely from rounds screen)
+      navigation.goBack();
+    }
   };
 
-  // Navigate directly to home screen
+  /**
+   * Navigate directly to home screen
+   * Enhanced to clear the navigation stack for a clean return
+   */
   const handleGoHome = () => {
-    navigation.navigate("HomeScreen");
+    // Use popToTop to go back to the root of the current stack (HomeScreen)
+    // This creates a clean navigation state
+    navigation.dispatch(StackActions.popToTop());
   };
 
   // If still loading, show loading indicator

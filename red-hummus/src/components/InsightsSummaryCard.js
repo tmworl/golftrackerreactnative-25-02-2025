@@ -4,7 +4,7 @@
 // It has been updated to use the AppText component with system fonts.
 
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import theme from "../ui/theme";
 import AppText from "./AppText"; // Import our new AppText component
@@ -15,12 +15,14 @@ import AppText from "./AppText"; // Import our new AppText component
  * Displays a card with a golf coach icon and insights summary.
  * Shows appropriate content for both when insights exist and when they don't.
  * Uses the AppText component with system fonts for consistent typography.
+ * Now includes a refresh button to allow users to manually refresh insights.
  * 
  * @param {object} props
  * @param {string|null} props.summary - The insights summary text to display
  * @param {boolean} props.loading - Whether the insights are currently loading
+ * @param {function} props.onRefresh - Function to call when refresh button is pressed
  */
-const InsightsSummaryCard = ({ summary, loading = false }) => {
+const InsightsSummaryCard = ({ summary, loading = false, onRefresh }) => {
   // If we're loading, show a loading state
   if (loading) {
     return (
@@ -54,11 +56,28 @@ const InsightsSummaryCard = ({ summary, loading = false }) => {
     <View style={styles.card}>
       {/* Card header with golf coach icon and title */}
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="golf-outline" size={24} color={theme.colors.primary} />
+        <View style={styles.leftHeader}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="golf-outline" size={24} color={theme.colors.primary} />
+          </View>
+          {/* Use AppText with 'subtitle' variant for the title */}
+          <AppText variant="subtitle">Coach's Corner</AppText>
         </View>
-        {/* Use AppText with 'subtitle' variant for the title */}
-        <AppText variant="subtitle">Coach's Corner</AppText>
+        
+        {/* Add refresh button - only shown when not loading */}
+        {onRefresh && (
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={onRefresh}
+            activeOpacity={0.6}
+          >
+            <Ionicons 
+              name="refresh-outline" 
+              size={22} 
+              color={theme.colors.primary} 
+            />
+          </TouchableOpacity>
+        )}
       </View>
       
       {/* Card content - either insights summary or empty state */}
@@ -86,7 +105,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between", // Changed to space-between to put refresh button on right
     marginBottom: 12,
+  },
+  leftHeader: {
+    flexDirection: "row", 
+    alignItems: "center",
   },
   iconContainer: {
     width: 40,
@@ -99,6 +123,10 @@ const styles = StyleSheet.create({
   },
   content: {
     marginLeft: 4, // Slight indent from the icon
+  },
+  refreshButton: {
+    padding: 6,
+    borderRadius: 20,
   },
 });
 

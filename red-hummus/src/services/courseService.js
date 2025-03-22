@@ -33,7 +33,14 @@ export const getAllCourses = async () => {
     }
     
     console.log('[courseService] Found courses:', data?.length);
-    return data || [];
+    
+    // Add flags for tee data availability
+    const enhancedData = data?.map(course => ({
+      ...course,
+      has_tee_data: course.tees !== null && Array.isArray(course.tees) && course.tees.length > 0
+    })) || [];
+    
+    return enhancedData;
   } catch (error) {
     console.error('[courseService] Exception in getAllCourses:', error);
     return [];
@@ -41,9 +48,9 @@ export const getAllCourses = async () => {
 };
 
 /**
- * Search for courses by name
+ * Search for courses by name or location
  * 
- * @param {string} searchTerm - The search term to filter courses by name
+ * @param {string} searchTerm - The search term to filter courses
  * @return {Promise<Array>} - Array of course objects matching the search
  */
 export const searchCourses = async (searchTerm) => {
@@ -53,14 +60,16 @@ export const searchCourses = async (searchTerm) => {
       return [];
     }
     
-    console.log('[courseService] Searching for courses with term:', searchTerm);
+    const trimmedTerm = searchTerm.trim();
+    console.log('[courseService] Searching for courses with term:', trimmedTerm);
     
-    // Query the database for courses matching the search term
+    // Query the database for courses matching the search term in name or location
     const { data, error } = await supabase
       .from('courses')
       .select('id, name, club_name, location, tees')
-      .ilike('name', `%${searchTerm.trim()}%`)
-      .limit(10);
+      .or(`name.ilike.%${trimmedTerm}%,location.ilike.%${trimmedTerm}%,club_name.ilike.%${trimmedTerm}%`)
+      .order('name')
+      .limit(15);
     
     if (error) {
       console.error('[courseService] Error searching courses:', error);
@@ -68,7 +77,14 @@ export const searchCourses = async (searchTerm) => {
     }
     
     console.log('[courseService] Found courses:', data?.length);
-    return data || [];
+    
+    // Add flags for tee data availability
+    const enhancedData = data?.map(course => ({
+      ...course,
+      has_tee_data: course.tees !== null && Array.isArray(course.tees) && course.tees.length > 0
+    })) || [];
+    
+    return enhancedData;
   } catch (error) {
     console.error('[courseService] Exception in searchCourses:', error);
     return [];
@@ -78,39 +94,65 @@ export const searchCourses = async (searchTerm) => {
 /**
  * Get recently played courses for a user
  * 
+ * Enhanced to return full course details in the same format as getAllCourses
+ * and searchCourses for consistency.
+ * 
  * @param {string} userId - The user's ID
  * @param {number} limit - Maximum number of courses to return
  * @return {Promise<Array>} - Array of recently played course objects
  */
 export const getRecentCourses = async (userId, limit = 5) => {
   try {
+    if (!userId) {
+      console.log('[courseService] No user ID provided for recent courses');
+      return [];
+    }
+    
     console.log('[courseService] Getting recent courses for user:', userId);
     
     // Query the database for recent rounds by the user
-    const { data, error } = await supabase
+    const { data: rounds, error: roundsError } = await supabase
       .from('rounds')
       .select('course_id, created_at')
       .eq('profile_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .eq('is_complete', true) // Only consider completed rounds
+      .order('created_at', { ascending: false });
     
-    if (error) {
-      console.error('[courseService] Error getting recent rounds:', error);
-      throw error;
+    if (roundsError) {
+      console.error('[courseService] Error getting recent rounds:', roundsError);
+      throw roundsError;
     }
     
-    if (!data || data.length === 0) {
+    if (!rounds || rounds.length === 0) {
+      console.log('[courseService] No recent rounds found for user');
       return [];
     }
     
     // Extract unique course IDs from the rounds
-    const courseIds = [...new Set(data.map(round => round.course_id))];
+    const uniqueCourseIds = [];
+    const seenIds = new Set();
     
-    // Get course details for the found course IDs
+    for (const round of rounds) {
+      if (!seenIds.has(round.course_id)) {
+        seenIds.add(round.course_id);
+        uniqueCourseIds.push(round.course_id);
+        
+        // Only get up to the limit of unique courses
+        if (uniqueCourseIds.length >= limit) {
+          break;
+        }
+      }
+    }
+    
+    if (uniqueCourseIds.length === 0) {
+      return [];
+    }
+    
+    // Get course details for the unique course IDs
     const { data: courses, error: coursesError } = await supabase
       .from('courses')
       .select('id, name, club_name, location, tees')
-      .in('id', courseIds);
+      .in('id', uniqueCourseIds);
     
     if (coursesError) {
       console.error('[courseService] Error getting course details:', coursesError);
@@ -118,7 +160,22 @@ export const getRecentCourses = async (userId, limit = 5) => {
     }
     
     console.log('[courseService] Found recent courses:', courses?.length);
-    return courses || [];
+    
+    // Add flags for tee data availability and maintain the order from the rounds query
+    const enhancedAndOrderedCourses = [];
+    
+    // Preserve the order of uniqueCourseIds (most recently played first)
+    for (const courseId of uniqueCourseIds) {
+      const course = courses.find(c => c.id === courseId);
+      if (course) {
+        enhancedAndOrderedCourses.push({
+          ...course,
+          has_tee_data: course.tees !== null && Array.isArray(course.tees) && course.tees.length > 0
+        });
+      }
+    }
+    
+    return enhancedAndOrderedCourses;
   } catch (error) {
     console.error('[courseService] Exception in getRecentCourses:', error);
     return [];

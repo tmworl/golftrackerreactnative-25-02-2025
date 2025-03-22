@@ -18,12 +18,16 @@ const Stack = createStackNavigator();
  * - CourseSelectorScreen: For selecting a course
  * - TrackerScreen: For tracking shots during a round
  * - ScorecardScreen: For viewing detailed scorecard after completing a round
+ * 
+ * Key changes:
+ * - Navigation flow is now more linear and focused
+ * - TrackerScreen has customized navigation options to prevent accidental back navigation
+ * - ScorecardScreen now provides a clear path back to home
  */
 export default function HomeStack() {
   return (
     <Stack.Navigator 
       initialRouteName="HomeScreen"
-      // Apply our consistent header styling to all screens in this stack
       screenOptions={headerConfig}
     >
       <Stack.Screen 
@@ -31,20 +35,33 @@ export default function HomeStack() {
         component={HomeScreen} 
         options={getHeaderOptions("Clubhouse")} 
       />
+      
       <Stack.Screen 
         name="CourseSelector" 
         component={CourseSelectorScreen} 
         options={getHeaderOptions("Select Course")} 
       />
+      
       <Stack.Screen 
         name="Tracker" 
         component={TrackerScreen} 
-        options={getHeaderOptions("Round Tracker")} 
+        options={({ navigation }) => ({
+          ...getHeaderOptions("Round Tracker"),
+          // Prevent going back directly from tracker without completing the round
+          headerLeft: () => null,
+          // Hide the tab bar during round tracking for a more focused experience
+          tabBarVisible: false,
+        })}
       />
+      
       <Stack.Screen 
         name="ScorecardScreen" 
         component={ScorecardScreen} 
-        options={getHeaderOptions("Scorecard")} 
+        options={({ navigation }) => ({
+          ...getHeaderOptions("Scorecard"),
+          // Prevent back navigation to the tracker screen
+          headerLeft: () => null,
+        })}
       />
     </Stack.Navigator>
   );

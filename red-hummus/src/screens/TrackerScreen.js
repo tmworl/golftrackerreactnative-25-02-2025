@@ -9,7 +9,9 @@ import {
   Alert, 
   ActivityIndicator, 
   ScrollView, 
-  SafeAreaView 
+  SafeAreaView,
+  BackHandler,
+  TouchableOpacity
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
@@ -67,6 +69,36 @@ export default function TrackerScreen({ navigation }) {
   const [loading, setLoading] = useState(false);                // Loading state for async operations
   const [course, setCourse] = useState(null);                   // Current course data
   const [courseDetails, setCourseDetails] = useState(null);     // Detailed course data from database
+
+  // Add this effect to handle hardware back button on Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        // Show confirmation dialog instead of going back immediately
+        Alert.alert(
+          "Exit Round?",
+          "Are you sure you want to exit this round? Your progress will be saved.",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => {} },
+            { 
+              text: "Exit", 
+              style: "destructive",
+              onPress: () => {
+                // Save current progress and navigate back
+                saveCurrentHoleToStorage().then(() => {
+                  navigation.goBack();
+                });
+              }
+            }
+          ]
+        );
+        return true; // Prevent default back behavior
+      }
+    );
+
+    return () => backHandler.remove();
+  }, []);
 
   /**
    * Save the current hole data to AsyncStorage
@@ -403,6 +435,7 @@ export default function TrackerScreen({ navigation }) {
 
   /**
    * Complete the round - save all hole data to database
+   * Enhanced to navigate directly to scorecard
    */
   const finishRound = async () => {
     try {
@@ -455,8 +488,12 @@ export default function TrackerScreen({ navigation }) {
       await AsyncStorage.removeItem(`round_${round.id}_holes`);
       await AsyncStorage.removeItem("currentRound");
       
-      // Navigate to scorecard
-      navigation.navigate("ScorecardScreen", { roundId: round.id });
+      // Navigate to scorecard with replace to prevent back navigation to the tracker
+      // This creates a cleaner flow where completing a round leads directly to the scorecard
+      navigation.replace("ScorecardScreen", { 
+        roundId: round.id,
+        fromTracker: true // Add flag to indicate we came from tracker
+      });
     } catch (error) {
       console.error("Error finishing round:", error);
       setLoading(false);

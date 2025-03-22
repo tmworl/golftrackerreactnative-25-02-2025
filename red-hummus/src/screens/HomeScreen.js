@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useContext } from "react";
 import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
 import { supabase } from "../services/supabase";
@@ -147,7 +148,7 @@ export default function HomeScreen({ navigation }) {
             loading={insightsLoading} 
           />
           
-          {/* Start New Round button */}
+          {/* Start New Round button - reverted to original direct navigation */}
           <TouchableOpacity 
             style={styles.primaryButton}
             onPress={() => navigation.navigate("CourseSelector")}

@@ -3,6 +3,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import HomeStack from "./HomeStack";
 import RoundsScreen from "../screens/RoundScreen";
 import InsightsScreen from "../screens/InsightsScreen";
@@ -86,6 +87,20 @@ const Tab = createBottomTabNavigator();
  * - Profile: For user account settings
  */
 export default function MainNavigator() {
+  // Function to determine tab bar visibility based on the current screen
+  const getTabBarVisibility = (route) => {
+    // Get the name of the focused route in the stack
+    const routeName = getFocusedRouteNameFromRoute(route);
+    
+    // Hide the tab bar for these specific screens
+    if (routeName === 'CourseSelector' || routeName === 'Tracker' || routeName === 'ScorecardScreen') {
+      return { display: 'none' };
+    }
+    
+    // Otherwise, show the tab bar with default styling
+    return undefined;
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -117,7 +132,11 @@ export default function MainNavigator() {
       <Tab.Screen
         name="HomeTab"
         component={HomeStack}
-        options={{ tabBarLabel: "Clubhouse" }}
+        options={({ route }) => ({
+          tabBarLabel: "Clubhouse",
+          // Dynamic tab bar styling based on current route
+          tabBarStyle: getTabBarVisibility(route)
+        })}
       />
       <Tab.Screen
         name="Rounds"
