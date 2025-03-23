@@ -1,20 +1,17 @@
 // src/screens/InsightsScreen.js
 
 import React, { useState, useEffect, useContext } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  ScrollView,
-  RefreshControl
-} from "react-native";
+import { View, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
 import { AuthContext } from "../context/AuthContext";
 import { getLatestInsights } from "../services/insightsService";
+
+// Import design system components
+import Typography from "../ui/components/Typography";
+import Button from "../ui/components/Button";
+import Card from "../ui/components/Card";
 
 /**
  * InsightsScreen Component
@@ -84,9 +81,9 @@ export default function InsightsScreen() {
       <View style={styles.sectionContainer}>
         <View style={styles.sectionHeader}>
           <Ionicons name={iconName} size={22} color={iconColor} />
-          <Text style={styles.sectionTitle}>{title}</Text>
+          <Typography variant="subtitle" style={styles.sectionTitle}>{title}</Typography>
         </View>
-        <Text style={styles.sectionContent}>{content}</Text>
+        <Typography variant="body" style={styles.sectionContent}>{content}</Typography>
       </View>
     );
   };
@@ -97,7 +94,9 @@ export default function InsightsScreen() {
       <Layout>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading your insights...</Text>
+          <Typography variant="secondary" style={styles.loadingText}>
+            Loading your insights...
+          </Typography>
         </View>
       </Layout>
     );
@@ -108,14 +107,22 @@ export default function InsightsScreen() {
     return (
       <Layout>
         <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle" size={48} color="#d32f2f" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={fetchInsights}
+          <Ionicons name="alert-circle" size={48} color={theme.colors.error} />
+          <Typography 
+            variant="subtitle" 
+            color={theme.colors.error}
+            style={styles.errorText}
           >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
+            {error}
+          </Typography>
+          <Button 
+            variant="primary" 
+            onPress={fetchInsights}
+            iconLeft="refresh-outline"
+            style={styles.retryButton}
+          >
+            Try Again
+          </Button>
         </View>
       </Layout>
     );
@@ -127,11 +134,19 @@ export default function InsightsScreen() {
       <Layout>
         <View style={styles.centerContainer}>
           <Ionicons name="golf-outline" size={64} color={theme.colors.primary} />
-          <Text style={styles.emptyTitleText}>No Insights Yet</Text>
-          <Text style={styles.emptyText}>
+          <Typography 
+            variant="title" 
+            style={styles.emptyTitleText}
+          >
+            No Insights Yet
+          </Typography>
+          <Typography 
+            variant="secondary"
+            style={styles.emptyText}
+          >
             Complete a round to get personalized insights from your golf coach.
             Track your shots to see patterns and get tips to improve your game.
-          </Text>
+          </Typography>
         </View>
       </Layout>
     );
@@ -150,72 +165,93 @@ export default function InsightsScreen() {
           />
         }
       >
-        <Text style={styles.title}>Golf Insights</Text>
-        
-        <View style={styles.insightsCard}>
+        <Card style={{margin: 16}}>
           {/* Summary Section */}
           {insights.summary && (
-            <View style={styles.summarySection}>
-              <Text style={styles.summaryText}>{insights.summary}</Text>
-            </View>
+            <Card.Header>
+              <Typography variant="body" weight="medium">
+                {insights.summary}
+              </Typography>
+            </Card.Header>
           )}
           
-          {/* Primary Issue Section */}
-          {renderInsightSection(
-            "Primary Issue",
-            insights.primaryIssue,
-            "warning-outline", 
-            "#f57c00" // Orange
-          )}
-          
-          {/* Reason Section */}
-          {renderInsightSection(
-            "Reason",
-            insights.reason,
-            "information-circle-outline", 
-            "#0288d1" // Blue
-          )}
-          
-          {/* Practice Focus Section */}
-          {renderInsightSection(
-            "Practice Focus",
-            insights.practiceFocus,
-            "basketball-outline", 
-            "#4caf50" // Green
-          )}
-          
-          {/* Management Tip Section */}
-          {renderInsightSection(
-            "Management Tip",
-            insights.managementTip,
-            "bulb-outline", 
-            "#ffc107" // Amber
-          )}
-          
-          {/* Progress Section - Only shown if available and not null */}
-          {insights.progress && insights.progress !== "null" && (
-            renderInsightSection(
-              "Progress",
-              insights.progress,
-              "trending-up-outline", 
-              "#9c27b0" // Purple
-            )
-          )}
+          <View style={{padding: insights.summary ? 0 : 8}}>
+            {/* Primary Issue Section */}
+            {renderInsightSection(
+              "Primary Issue",
+              insights.primaryIssue,
+              "warning-outline", 
+              "#f57c00" // Orange
+            )}
+            
+            {/* Reason Section */}
+            {renderInsightSection(
+              "Reason",
+              insights.reason,
+              "information-circle-outline", 
+              "#0288d1" // Blue
+            )}
+            
+            {/* Practice Focus Section */}
+            {renderInsightSection(
+              "Practice Focus",
+              insights.practiceFocus,
+              "basketball-outline", 
+              "#4caf50" // Green
+            )}
+            
+            {/* Management Tip Section */}
+            {renderInsightSection(
+              "Management Tip",
+              insights.managementTip,
+              "bulb-outline", 
+              "#ffc107" // Amber
+            )}
+            
+            {/* Progress Section - Only shown if available and not null */}
+            {insights.progress && insights.progress !== "null" && (
+              renderInsightSection(
+                "Progress",
+                insights.progress,
+                "trending-up-outline", 
+                "#9c27b0" // Purple
+              )
+            )}
+          </View>
           
           {/* Show when the insights were generated */}
           {insights.generatedAt && (
-            <Text style={styles.generatedAtText}>
-              Generated on {new Date(insights.generatedAt).toLocaleDateString()}
-            </Text>
+            <Card.Footer>
+              <Typography 
+                variant="caption" 
+                italic={true}
+                align="center"
+              >
+                Generated on {new Date(insights.generatedAt).toLocaleDateString()}
+              </Typography>
+            </Card.Footer>
           )}
+        </Card>
+        
+        {/* Refresh button at the bottom */}
+        <View style={styles.buttonContainer}>
+          <Button
+            variant="outline"
+            iconLeft="refresh-outline"
+            onPress={onRefresh}
+            loading={refreshing}
+          >
+            Refresh Insights
+          </Button>
         </View>
       </ScrollView>
     </Layout>
   );
 }
 
-// Styles for the component
-const styles = StyleSheet.create({
+// We're keeping the styles here for compatibility, but gradually they could be
+// moved to the component level in the future design system
+const styles = {
   scrollContainer: {
     flexGrow: 1,
     paddingBottom: 24,
@@ -226,36 +262,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-    marginHorizontal: 20,
-  },
-  insightsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    margin: 16,
-    // Shadow for iOS
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    // Elevation for Android
-    elevation: 2,
-  },
-  summarySection: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    paddingBottom: 16,
-    marginBottom: 16,
-  },
-  summaryText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#333",
-  },
   sectionContainer: {
     marginBottom: 20,
   },
@@ -265,57 +271,35 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
     marginLeft: 8,
-    color: "#444",
   },
   sectionContent: {
-    fontSize: 16,
     lineHeight: 24,
-    color: "#555",
     paddingLeft: 30, // Indent to align with section title
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: "#666",
   },
   errorText: {
     marginTop: 16,
-    fontSize: 16,
-    color: "#d32f2f",
     textAlign: "center",
     marginBottom: 24,
   },
   retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 20,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontWeight: "500",
+    minWidth: 120,
   },
   emptyTitleText: {
-    fontSize: 20,
-    fontWeight: "bold",
     marginTop: 24,
     marginBottom: 12,
   },
   emptyText: {
-    fontSize: 16,
     textAlign: "center",
-    color: "#666",
     paddingHorizontal: 24,
     lineHeight: 24,
   },
-  generatedAtText: {
-    fontSize: 12,
-    color: "#999",
-    textAlign: "center",
+  buttonContainer: {
+    alignItems: 'center',
     marginTop: 16,
-    fontStyle: "italic",
-  },
-});
+    marginBottom: 24,
+  }
+};

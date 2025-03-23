@@ -1,8 +1,12 @@
 // src/screens/AuthScreen.js
 
 import React, { useState, useContext, useEffect } from "react";
-import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator } from "react-native";
+import { View, TextInput, StyleSheet, ActivityIndicator } from "react-native";
 import { AuthContext } from "../context/AuthContext";
+// Import design system components
+import Button from "../ui/components/Button";
+import Typography from "../ui/components/Typography";
+import theme from "../ui/theme";
 
 export default function AuthScreen({ navigation }) {
   // Retrieve auth state and methods from our context.
@@ -53,10 +57,23 @@ export default function AuthScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isLogin ? "Sign In" : "Create Account"}</Text>
+      <Typography variant="title" align="center" style={styles.title}>
+        {isLogin ? "Sign In" : "Create Account"}
+      </Typography>
 
-      {formError ? <Text style={styles.error}>{formError}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* Show form error if present */}
+      {formError ? (
+        <Typography variant="body" color={theme.colors.error} align="center" style={styles.error}>
+          {formError}
+        </Typography>
+      ) : null}
+      
+      {/* Show auth error if present */}
+      {error ? (
+        <Typography variant="body" color={theme.colors.error} align="center" style={styles.error}>
+          {error}
+        </Typography>
+      ) : null}
 
       <TextInput
         style={styles.input}
@@ -74,20 +91,29 @@ export default function AuthScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
-      {loading ? (
-        <ActivityIndicator size="large" />
-      ) : (
-        <Button title={isLogin ? "Sign In" : "Create Account"} onPress={handleSubmit} />
-      )}
-
+      {/* Primary action button with loading state */}
       <Button
-        title={isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+        variant="primary"
+        onPress={handleSubmit}
+        loading={loading}
+        style={styles.submitButton}
+        fullWidth={true}
+      >
+        {isLogin ? "Sign In" : "Create Account"}
+      </Button>
+
+      {/* Toggle between sign in and sign up modes */}
+      <Button
+        variant="text"
         onPress={() => {
           setIsLogin(!isLogin);
           setFormError("");
           setError(null);
         }}
-      />
+        style={styles.toggleButton}
+      >
+        {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+      </Button>
     </View>
   );
 }
@@ -100,20 +126,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff"
   },
   title: {
-    fontSize: 24,
     marginBottom: 20,
-    textAlign: "center"
   },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
     padding: 10,
     marginVertical: 10,
-    borderRadius: 5
+    borderRadius: 5,
+    fontSize: 16,
   },
   error: {
-    color: "red",
-    textAlign: "center",
-    marginBottom: 10
+    marginBottom: 10,
+  },
+  submitButton: {
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  toggleButton: {
+    marginTop: 5,
   }
 });
