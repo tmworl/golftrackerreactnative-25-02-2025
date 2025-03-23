@@ -1,7 +1,7 @@
 // src/screens/HomeScreen.js
 
 import React, { useState, useEffect, useContext } from "react";
-import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Text } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
@@ -9,13 +9,16 @@ import { supabase } from "../services/supabase";
 import { AuthContext } from "../context/AuthContext";
 import InsightsSummaryCard from "../components/InsightsSummaryCard";
 import { getLatestInsights } from "../services/insightsService";
-import AppText from "../components/AppText";
+import Typography from "../ui/components/Typography";
+import Button from "../ui/components/Button";
+import Card from "../ui/components/Card";
 
 /**
  * HomeScreen Component
  * 
  * This screen shows the insights summary card, "Start New Round" button 
  * and displays cards for recent completed rounds.
+ * Enhanced with design system components for visual consistency.
  */
 export default function HomeScreen({ navigation }) {
   const { user } = useContext(AuthContext);
@@ -35,7 +38,6 @@ export default function HomeScreen({ navigation }) {
         setLoading(true);
         
         // Fetch rounds including score and gross_shots if they exist
-        // IMPORTANT CHANGE: Added filter for is_complete = true
         const { data, error } = await supabase
           .from("rounds")
           .select(`
@@ -135,6 +137,59 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate("ScorecardScreen", { roundId });
   };
 
+  // Render a round card
+  const renderRoundCard = (round) => (
+    <TouchableOpacity 
+      key={round.id} 
+      onPress={() => handleRoundPress(round.id)}
+      activeOpacity={0.7}
+    >
+      <Card style={styles.roundCard}>
+        {/* Course name and date row */}
+        <View style={styles.cardTopRow}>
+          <Typography 
+            variant="body" 
+            weight="semibold" 
+            style={styles.courseName}
+          >
+            {round.courseName}
+          </Typography>
+          <Typography variant="caption">
+            {new Date(round.date).toLocaleDateString()}
+          </Typography>
+        </View>
+        
+        {/* Stats row - only show for completed rounds */}
+        <View style={styles.cardStatsRow}>
+          {/* Gross shots (more prominent) */}
+          <View style={styles.statContainer}>
+            <Typography variant="subtitle" weight="bold">
+              {round.grossShots !== null ? round.grossShots : "-"}
+            </Typography>
+            <Typography variant="caption">Total</Typography>
+          </View>
+          
+          {/* Divider */}
+          <View style={styles.statDivider} />
+          
+          {/* Score to par (less prominent) */}
+          <View style={styles.statContainer}>
+            <Typography
+              variant="body"
+              weight="semibold"
+              color={theme.colors.primary}
+            >
+              {round.score !== null 
+                ? (round.score > 0 ? `+${round.score}` : round.score) 
+                : "-"}
+            </Typography>
+            <Typography variant="caption">To Par</Typography>
+          </View>
+        </View>
+      </Card>
+    </TouchableOpacity>
+  );
+
   return (
     <Layout>
       <ScrollView 
@@ -148,79 +203,41 @@ export default function HomeScreen({ navigation }) {
             loading={insightsLoading} 
           />
           
-          {/* Start New Round button - reverted to original direct navigation */}
-          <TouchableOpacity 
-            style={styles.primaryButton}
+          {/* Start New Round button */}
+          <Button
+            variant="primary"
+            size="large"
             onPress={() => navigation.navigate("CourseSelector")}
+            style={styles.primaryButton}
           >
-            <AppText variant="button" color="#FFFFFF" semibold>
-              Start New Round
-            </AppText>
-          </TouchableOpacity>
+            Start New Round
+          </Button>
           
           <View style={styles.recentRoundsSection}>
             {/* Section title for Recent Rounds */}
-            <AppText variant="subtitle" style={styles.sectionTitle}>Recent Rounds</AppText>
+            <Typography 
+              variant="subtitle" 
+              style={styles.sectionTitle}
+            >
+              Recent Rounds
+            </Typography>
             
             {loading ? (
               <ActivityIndicator size="large" color={theme.colors.primary} />
             ) : recentRounds.length > 0 ? (
               <View style={styles.roundsList}>
-                {recentRounds.map((round) => (
-                  <TouchableOpacity 
-                    key={round.id} 
-                    style={styles.roundCard}
-                    onPress={() => handleRoundPress(round.id)}
-                    activeOpacity={0.7}
-                  >
-                    {/* Course name and date row */}
-                    <View style={styles.cardTopRow}>
-                      <AppText variant="body" semibold style={styles.courseName}>
-                        {round.courseName}
-                      </AppText>
-                      <AppText variant="caption">
-                        {new Date(round.date).toLocaleDateString()}
-                      </AppText>
-                    </View>
-                    
-                    {/* Stats row - only show for completed rounds */}
-                    <View style={styles.cardStatsRow}>
-                      {/* Gross shots (more prominent) */}
-                      <View style={styles.statContainer}>
-                        <AppText variant="subtitle" bold>
-                          {round.grossShots !== null ? round.grossShots : "-"}
-                        </AppText>
-                        <AppText variant="caption">Total</AppText>
-                      </View>
-                      
-                      {/* Divider */}
-                      <View style={styles.statDivider} />
-                      
-                      {/* Score to par (less prominent) */}
-                      <View style={styles.statContainer}>
-                        <AppText
-                          variant="body"
-                          semibold
-                          color={theme.colors.primary}
-                        >
-                          {round.score !== null 
-                            ? (round.score > 0 ? `+${round.score}` : round.score) 
-                            : "-"}
-                        </AppText>
-                        <AppText variant="caption">To Par</AppText>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                {recentRounds.map(renderRoundCard)}
               </View>
             ) : (
-              <AppText 
-                variant="secondary" 
-                italic 
-                style={styles.noDataText}
-              >
-                No completed rounds yet. Start tracking your game!
-              </AppText>
+              <Card variant="flat" style={styles.emptyStateCard}>
+                <Typography 
+                  variant="secondary" 
+                  italic 
+                  align="center"
+                >
+                  No completed rounds yet. Start tracking your game!
+                </Typography>
+              </Card>
             )}
           </View>
         </View>
@@ -238,57 +255,45 @@ const styles = StyleSheet.create({
     padding: theme.spacing.medium,
   },
   primaryButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    marginVertical: theme.spacing.medium,
     minWidth: 200,
-    marginVertical: 16,
   },
   recentRoundsSection: {
     width: "100%",
-    marginTop: 24,
+    marginTop: theme.spacing.large,
   },
   sectionTitle: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.medium,
   },
   roundsList: {
     width: "100%",
   },
   roundCard: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    marginBottom: theme.spacing.medium,
+    padding: 0, // Remove default padding to control it ourselves
   },
   cardTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: theme.spacing.small,
+    paddingHorizontal: theme.spacing.medium,
+    paddingTop: theme.spacing.medium,
   },
   cardStatsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: theme.spacing.small,
+    paddingTop: theme.spacing.small,
+    paddingBottom: theme.spacing.medium,
+    paddingHorizontal: theme.spacing.medium,
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
   },
   courseName: {
     flex: 1,
+    marginRight: theme.spacing.small,
   },
   statContainer: {
     alignItems: "center",
@@ -299,8 +304,7 @@ const styles = StyleSheet.create({
     height: 30,
     backgroundColor: "#e0e0e0",
   },
-  noDataText: {
-    textAlign: "center",
-    padding: 16,
+  emptyStateCard: {
+    padding: theme.spacing.medium,
   }
 });
