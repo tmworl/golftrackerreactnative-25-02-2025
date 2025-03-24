@@ -1,13 +1,14 @@
 // src/screens/HomeScreen.js
 
 import React, { useState, useEffect, useContext } from "react";
-import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
 import { supabase } from "../services/supabase";
 import { AuthContext } from "../context/AuthContext";
 import InsightsSummaryCard from "../components/InsightsSummaryCard";
+import RoundSummaryCard from "../components/RoundSummaryCard";
 import { getLatestInsights } from "../services/insightsService";
 import Typography from "../ui/components/Typography";
 import Button from "../ui/components/Button";
@@ -137,59 +138,6 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate("ScorecardScreen", { roundId });
   };
 
-  // Render a round card
-  const renderRoundCard = (round) => (
-    <TouchableOpacity 
-      key={round.id} 
-      onPress={() => handleRoundPress(round.id)}
-      activeOpacity={0.7}
-    >
-      <Card style={styles.roundCard}>
-        {/* Course name and date row */}
-        <View style={styles.cardTopRow}>
-          <Typography 
-            variant="body" 
-            weight="semibold" 
-            style={styles.courseName}
-          >
-            {round.courseName}
-          </Typography>
-          <Typography variant="caption">
-            {new Date(round.date).toLocaleDateString()}
-          </Typography>
-        </View>
-        
-        {/* Stats row - only show for completed rounds */}
-        <View style={styles.cardStatsRow}>
-          {/* Gross shots (more prominent) */}
-          <View style={styles.statContainer}>
-            <Typography variant="subtitle" weight="bold">
-              {round.grossShots !== null ? round.grossShots : "-"}
-            </Typography>
-            <Typography variant="caption">Total</Typography>
-          </View>
-          
-          {/* Divider */}
-          <View style={styles.statDivider} />
-          
-          {/* Score to par (less prominent) */}
-          <View style={styles.statContainer}>
-            <Typography
-              variant="body"
-              weight="semibold"
-              color={theme.colors.primary}
-            >
-              {round.score !== null 
-                ? (round.score > 0 ? `+${round.score}` : round.score) 
-                : "-"}
-            </Typography>
-            <Typography variant="caption">To Par</Typography>
-          </View>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
-
   return (
     <Layout>
       <ScrollView 
@@ -226,7 +174,13 @@ export default function HomeScreen({ navigation }) {
               <ActivityIndicator size="large" color={theme.colors.primary} />
             ) : recentRounds.length > 0 ? (
               <View style={styles.roundsList}>
-                {recentRounds.map(renderRoundCard)}
+                {recentRounds.map(round => (
+                  <RoundSummaryCard 
+                    key={round.id}
+                    round={round} 
+                    onPress={() => handleRoundPress(round.id)}
+                  />
+                ))}
               </View>
             ) : (
               <Card variant="flat" style={styles.emptyStateCard}>
@@ -267,42 +221,6 @@ const styles = StyleSheet.create({
   },
   roundsList: {
     width: "100%",
-  },
-  roundCard: {
-    marginBottom: theme.spacing.medium,
-    padding: 0, // Remove default padding to control it ourselves
-  },
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: theme.spacing.small,
-    paddingHorizontal: theme.spacing.medium,
-    paddingTop: theme.spacing.medium,
-  },
-  cardStatsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    marginTop: theme.spacing.small,
-    paddingTop: theme.spacing.small,
-    paddingBottom: theme.spacing.medium,
-    paddingHorizontal: theme.spacing.medium,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  courseName: {
-    flex: 1,
-    marginRight: theme.spacing.small,
-  },
-  statContainer: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#e0e0e0",
   },
   emptyStateCard: {
     padding: theme.spacing.medium,

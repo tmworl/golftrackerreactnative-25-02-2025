@@ -1,13 +1,14 @@
 // src/screens/RoundScreen.js
 
 import React, { useState, useEffect, useContext } from "react";
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
 import { supabase } from "../services/supabase";
 import Layout from "../ui/Layout";
 import theme from "../ui/theme";
-import AppText from "../components/AppText";
+import RoundSummaryCard from "../components/RoundSummaryCard";
+import Typography from "../ui/components/Typography";
 
 /**
  * RoundsScreen Component
@@ -101,53 +102,6 @@ export default function RoundsScreen() {
     navigation.navigate("ScorecardScreen", { roundId });
   };
 
-  // Render each round as a card
-  const renderRoundCard = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.roundCard}
-      onPress={() => handleRoundPress(item.id)}
-      activeOpacity={0.7}
-    >
-      {/* Course name and date row */}
-      <View style={styles.cardTopRow}>
-        <AppText variant="body" semibold style={styles.courseName}>
-          {item.courseName}
-        </AppText>
-        <AppText variant="caption">
-          {new Date(item.date).toLocaleDateString()}
-        </AppText>
-      </View>
-      
-      {/* Stats row */}
-      <View style={styles.cardStatsRow}>
-        {/* Gross shots (more prominent) */}
-        <View style={styles.statContainer}>
-          <AppText variant="subtitle" bold>
-            {item.grossShots !== null ? item.grossShots : "-"}
-          </AppText>
-          <AppText variant="caption">Total</AppText>
-        </View>
-        
-        {/* Divider */}
-        <View style={styles.statDivider} />
-        
-        {/* Score to par (less prominent) */}
-        <View style={styles.statContainer}>
-          <AppText 
-            variant="body" 
-            semibold 
-            color={theme.colors.primary}
-          >
-            {item.score !== null 
-              ? (item.score > 0 ? `+${item.score}` : item.score) 
-              : "-"}
-          </AppText>
-          <AppText variant="caption">To Par</AppText>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
   return (
     <Layout>
       <View style={styles.container}>
@@ -156,20 +110,25 @@ export default function RoundsScreen() {
         ) : rounds.length > 0 ? (
           <FlatList
             data={rounds}
-            renderItem={renderRoundCard}
+            renderItem={({ item }) => (
+              <RoundSummaryCard 
+                round={item} 
+                onPress={() => handleRoundPress(item.id)}
+              />
+            )}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={true}
           />
         ) : (
           <View style={styles.emptyContainer}>
-            <AppText 
+            <Typography 
               variant="secondary" 
               italic 
               style={styles.emptyText}
             >
               No completed rounds yet. Start a round from the Home tab!
-            </AppText>
+            </Typography>
           </View>
         )}
       </View>
@@ -185,44 +144,6 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 20,
   },
-  roundCard: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  cardStatsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  courseName: {
-    flex: 1,
-  },
-  statContainer: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#e0e0e0",
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -231,5 +152,5 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: "center",
-  },
+  }
 });
