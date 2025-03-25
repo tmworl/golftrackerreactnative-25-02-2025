@@ -3,15 +3,21 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import HomeStack from "./HomeStack";
 import RoundsScreen from "../screens/RoundScreen";
 import InsightsScreen from "../screens/InsightsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ScorecardScreen from "../screens/ScorecardScreen";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import theme from "../ui/theme";
-import { headerConfig, getHeaderOptions } from "../ui/headerConfig";
+
+// Import our navigation styling system
+import navigationTheme from "../ui/navigation/theme";
+import { getTabBarConfig, getTabNavigatorScreenOptions } from "../ui/navigation/configs/tabBar";
+import { 
+  createStackNavigatorScreenOptions,
+  createRoundsStackConfig, 
+  createInsightsStackConfig, 
+  createProfileStackConfig 
+} from "../ui/navigation/configs/stack";
 
 // Create stack navigators for each tab that needs nested navigation
 const RoundsStack = createStackNavigator();
@@ -25,17 +31,20 @@ const ProfileStack = createStackNavigator();
  * This allows navigation from the rounds list to the scorecard view
  */
 function RoundsStackScreen() {
+  // Get configuration for the rounds stack
+  const config = createRoundsStackConfig();
+  
   return (
-    <RoundsStack.Navigator screenOptions={headerConfig}>
+    <RoundsStack.Navigator screenOptions={config.screenOptions}>
       <RoundsStack.Screen 
         name="RoundsScreen" 
         component={RoundsScreen} 
-        options={getHeaderOptions("Your Rounds")}
+        options={config.screenConfigs.RoundsScreen.options}
       />
       <RoundsStack.Screen 
         name="ScorecardScreen" 
         component={ScorecardScreen} 
-        options={getHeaderOptions("Scorecard")}
+        options={config.screenConfigs.ScorecardScreen.options}
       />
     </RoundsStack.Navigator>
   );
@@ -47,12 +56,15 @@ function RoundsStackScreen() {
  * Creates a stack navigator for the Insights tab with consistent headers
  */
 function InsightsStackScreen() {
+  // Get configuration for the insights stack
+  const config = createInsightsStackConfig();
+  
   return (
-    <InsightsStack.Navigator screenOptions={headerConfig}>
+    <InsightsStack.Navigator screenOptions={config.screenOptions}>
       <InsightsStack.Screen 
         name="InsightsScreen" 
         component={InsightsScreen}
-        options={getHeaderOptions("Golf Insights")}
+        options={config.screenConfigs.InsightsScreen.options}
       />
     </InsightsStack.Navigator>
   );
@@ -64,12 +76,15 @@ function InsightsStackScreen() {
  * Creates a stack navigator for the Profile tab with consistent headers
  */
 function ProfileStackScreen() {
+  // Get configuration for the profile stack
+  const config = createProfileStackConfig();
+  
   return (
-    <ProfileStack.Navigator screenOptions={headerConfig}>
+    <ProfileStack.Navigator screenOptions={config.screenOptions}>
       <ProfileStack.Screen 
         name="ProfileScreen" 
         component={ProfileScreen}
-        options={getHeaderOptions("Profile")}
+        options={config.screenConfigs.ProfileScreen.options}
       />
     </ProfileStack.Navigator>
   );
@@ -87,74 +102,27 @@ const Tab = createBottomTabNavigator();
  * - Profile: For user account settings
  */
 export default function MainNavigator() {
-  // Function to determine tab bar visibility based on the current screen
-  const getTabBarVisibility = (route) => {
-    // Get the name of the focused route in the stack
-    const routeName = getFocusedRouteNameFromRoute(route);
-    
-    // Hide the tab bar for these specific screens
-    if (routeName === 'CourseSelector' || routeName === 'Tracker' || routeName === 'ScorecardScreen') {
-      return { display: 'none' };
-    }
-    
-    // Otherwise, show the tab bar with default styling
-    return undefined;
-  };
-
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        // Hide the tab-level header since each stack has its own headers
-        headerShown: false,
-
-        // Set up the tab bar icons
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          // Define icons for each tab route
-          if (route.name === "HomeTab") {
-            iconName = focused ? "home" : "home-outline";
-          } else if (route.name === "Rounds") {
-            iconName = focused ? "golf" : "golf-outline";
-          } else if (route.name === "Insights") {
-            iconName = focused ? "bulb" : "bulb-outline";
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline";
-          }
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        
-        // Tab styling
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: "gray",
-      })}
-    >
+    <Tab.Navigator screenOptions={getTabNavigatorScreenOptions()}>
       <Tab.Screen
         name="HomeTab"
         component={HomeStack}
-        options={({ route }) => ({
-          tabBarLabel: "Clubhouse",
-          // Dynamic tab bar styling based on current route
-          tabBarStyle: getTabBarVisibility(route)
-        })}
+        options={({ route }) => getTabBarConfig(route)}
       />
       <Tab.Screen
         name="Rounds"
         component={RoundsStackScreen}
-        options={{ tabBarLabel: "Rounds" }}
+        options={({ route }) => getTabBarConfig(route)}
       />
       <Tab.Screen
         name="Insights"
         component={InsightsStackScreen}
-        options={{ 
-          tabBarLabel: "Insights",
-          tabBarBadge: "New" 
-        }}
+        options={({ route }) => getTabBarConfig(route)}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileStackScreen}
-        options={{ tabBarLabel: "Profile" }}
+        options={({ route }) => getTabBarConfig(route)}
       />
     </Tab.Navigator>
   );

@@ -6,7 +6,9 @@ import HomeScreen from "../screens/HomeScreen";
 import CourseSelectorScreen from "../screens/CourseSelectorScreen";
 import TrackerScreen from "../screens/TrackerScreen";
 import ScorecardScreen from "../screens/ScorecardScreen";
-import { headerConfig, getHeaderOptions } from "../ui/headerConfig";
+
+// Import our navigation styling system
+import { createHomeStackConfig } from "../ui/navigation/configs/stack";
 
 const Stack = createStackNavigator();
 
@@ -18,50 +20,38 @@ const Stack = createStackNavigator();
  * - CourseSelectorScreen: For selecting a course
  * - TrackerScreen: For tracking shots during a round
  * - ScorecardScreen: For viewing detailed scorecard after completing a round
- * 
- * Key changes:
- * - Navigation flow is now more linear and focused
- * - TrackerScreen has customized navigation options to prevent accidental back navigation
- * - ScorecardScreen now provides a clear path back to home
  */
 export default function HomeStack() {
+  // Get configuration for the home stack
+  const config = createHomeStackConfig();
+  
   return (
     <Stack.Navigator 
       initialRouteName="HomeScreen"
-      screenOptions={headerConfig}
+      screenOptions={config.screenOptions}
     >
       <Stack.Screen 
         name="HomeScreen" 
         component={HomeScreen} 
-        options={getHeaderOptions("Clubhouse")} 
+        options={config.screenConfigs.HomeScreen.options} 
       />
       
       <Stack.Screen 
         name="CourseSelector" 
         component={CourseSelectorScreen} 
-        options={getHeaderOptions("Select Course")} 
+        options={config.screenConfigs.CourseSelector.options} 
       />
       
       <Stack.Screen 
         name="Tracker" 
         component={TrackerScreen} 
-        options={({ navigation }) => ({
-          ...getHeaderOptions("Round Tracker"),
-          // Prevent going back directly from tracker without completing the round
-          headerLeft: () => null,
-          // Hide the tab bar during round tracking for a more focused experience
-          tabBarVisible: false,
-        })}
+        options={config.screenConfigs.Tracker.options}
       />
       
       <Stack.Screen 
         name="ScorecardScreen" 
         component={ScorecardScreen} 
-        options={({ navigation }) => ({
-          ...getHeaderOptions("Scorecard"),
-          // Prevent back navigation to the tracker screen
-          headerLeft: () => null,
-        })}
+        options={config.screenConfigs.ScorecardScreen.options}
       />
     </Stack.Navigator>
   );

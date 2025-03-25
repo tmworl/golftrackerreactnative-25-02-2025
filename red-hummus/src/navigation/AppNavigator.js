@@ -2,18 +2,24 @@
 
 import React, { useContext } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import AuthScreen from "../screens/AuthScreen"; // New custom auth screen
+import AuthScreen from "../screens/AuthScreen";
 import MainNavigator from "./MainNavigator";
 import { AuthContext } from "../context/AuthContext";
+
+// Import our navigation styling system
+import { createAppNavigatorScreenOptions } from "../ui/navigation/configs/appNavigator";
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
-  // Retrieve the current user from our global auth state.
+  // Preserve the existing authentication context integration
   const { user } = useContext(AuthContext);
 
+  // Get styling configuration from our system
+  const screenOptions = createAppNavigatorScreenOptions();
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={screenOptions}>
       {user ? (
         // If a user is authenticated, show the main app navigator.
         <Stack.Screen name="Main" component={MainNavigator} />

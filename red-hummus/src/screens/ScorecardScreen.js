@@ -13,7 +13,7 @@ import theme from "../ui/theme";
  * 
  * Displays a detailed scorecard for a completed round.
  * Shows hole-by-hole scores and outcome breakdowns.
- * Updated to work with the new shots table structure.
+ * Updated to work with the new shots data structure.
  * Enhanced navigation to provide cleaner flow back to home screen.
  */
 export default function ScorecardScreen() {
@@ -222,20 +222,6 @@ export default function ScorecardScreen() {
   };
 
   /**
-   * Navigate back to previous screen
-   * Enhanced to check if coming from tracker or rounds
-   */
-  const handleBack = () => {
-    // If we came from the tracker, we should go home instead of back
-    if (fromTracker) {
-      handleGoHome();
-    } else {
-      // Otherwise normal back behavior (likely from rounds screen)
-      navigation.goBack();
-    }
-  };
-
-  /**
    * Navigate directly to home screen
    * Enhanced to clear the navigation stack for a clean return
    */
@@ -263,18 +249,6 @@ export default function ScorecardScreen() {
   return (
     <Layout>
       <View style={styles.container}>
-        {/* Header with back button */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={handleBack}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Scorecard</Text>
-          <View style={styles.placeholder} />
-        </View>
-        
         {/* Course info */}
         <View style={styles.courseInfo}>
           <Text style={styles.courseName}>{courseData?.name || "Unknown Course"}</Text>
@@ -398,13 +372,15 @@ export default function ScorecardScreen() {
           </View>
         </View>
         
-        {/* Return to Home button - Material Design styled */}
-        <TouchableOpacity 
-          style={styles.homeButton}
-          onPress={handleGoHome}
-        >
-          <Text style={styles.homeButtonText}>Return to Home</Text>
-        </TouchableOpacity>
+        {/* Return to Home button - only shown when coming from tracker */}
+        {fromTracker && (
+          <TouchableOpacity 
+            style={styles.homeButton}
+            onPress={handleGoHome}
+          >
+            <Text style={styles.homeButtonText}>Return to Home</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Layout>
   );
@@ -456,29 +432,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: "#666",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-  },
-  backButton: {
-    padding: 8,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  placeholder: {
-    width: 40, // Same size as back button for alignment
   },
   courseInfo: {
     backgroundColor: "#fff",
