@@ -1,8 +1,11 @@
 // src/components/ShotTable.js
+// Enhanced with premium interaction patterns for iOS 18 and Material 3
 
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Dimensions } from "react-native";
+import Animated from "react-native-reanimated";
 import theme from "../ui/theme";
+import { useTactileFeedback } from "../ui/interaction";
 
 // Define shot types and outcomes with color coding
 const shotTypes = ["Tee Shot", "Long Shot", "Approach", "Chip", "Putts", "Sand", "Penalties"];
@@ -15,7 +18,7 @@ const screenWidth = Dimensions.get('window').width;
  * ShotTable Component
  * 
  * Displays a table of shot types and outcomes for tracking golf shots.
- * Features color-coded outcome headers and optimized layout.
+ * Enhanced with premium tactile feedback and animations.
  */
 export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, addShot, removeShot }) {
   if (!shotCounts) {
@@ -36,6 +39,31 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
     }
   };
 
+  // Create a enhanced touchable button with tactile feedback
+  const TactileButton = ({ onPress, disabled, style, children }) => {
+    // Use our custom hook for premium interactions
+    const {
+      animatedStyle,
+      handlePressIn,
+      handlePressOut,
+      androidRippleConfig,
+      AnimatedPressable,
+    } = useTactileFeedback('button');
+
+    return (
+      <AnimatedPressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        android_ripple={androidRippleConfig}
+        disabled={disabled}
+        style={[animatedStyle, style, disabled && styles.disabledButton]}
+      >
+        {children}
+      </AnimatedPressable>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header Row */}
@@ -46,7 +74,7 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
         
         {/* Outcome Headers with color coding */}
         {outcomes.map((outcome) => (
-          <TouchableOpacity
+          <TactileButton
             key={outcome}
             onPress={() => setActiveColumn(outcome)}
             style={[
@@ -64,7 +92,7 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
             ]}>
               {outcome}
             </Text>
-          </TouchableOpacity>
+          </TactileButton>
         ))}
       </View>
       
@@ -86,7 +114,7 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
             const isActive = activeColumn === outcome;
             
             return (
-              <TouchableOpacity
+              <TactileButton
                 key={outcome}
                 onPress={() => !isActive && setActiveColumn(outcome)}
                 style={[
@@ -100,22 +128,22 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
               >
                 {isActive ? (
                   <View style={styles.controlsContainer}>
-                    <TouchableOpacity
+                    <TactileButton
                       onPress={() => removeShot(type, outcome)}
                       disabled={count === 0}
                       style={[styles.button, count === 0 && styles.disabledButton]}
                     >
                       <Text style={styles.buttonText}>-</Text>
-                    </TouchableOpacity>
+                    </TactileButton>
                     
                     <Text style={styles.countText}>{count}</Text>
                     
-                    <TouchableOpacity
+                    <TactileButton
                       onPress={() => addShot(type, outcome)}
                       style={styles.button}
                     >
                       <Text style={styles.buttonText}>+</Text>
-                    </TouchableOpacity>
+                    </TactileButton>
                   </View>
                 ) : (
                   <Text style={[
@@ -125,7 +153,7 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
                     {count}
                   </Text>
                 )}
-              </TouchableOpacity>
+              </TactileButton>
             );
           })}
         </View>
@@ -135,6 +163,7 @@ export default function ShotTable({ shotCounts, activeColumn, setActiveColumn, a
 }
 
 const styles = StyleSheet.create({
+  // Existing styles preserved for compatibility
   container: {
     backgroundColor: "#fff",
     borderRadius: 8,

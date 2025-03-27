@@ -3,7 +3,7 @@
 // Navigation token system that defines the styling vocabulary for navigation
 // Provides platform-specific values while referencing the core theme
 
-import { Platform } from 'react-native';
+import { Platform, Easing as RNEasing } from 'react-native';
 import theme from '../../theme';
 import platform from './platform';
 
@@ -30,7 +30,7 @@ const navigationTokens = {
       statusBarHeight: platform.getStatusBarHeight(),
       elevation: platform.select({
         ios: 0,
-        android: 4,
+        android: 2, // Reduced from 4 for Material 3 compliance
       }),
     },
     
@@ -38,14 +38,23 @@ const navigationTokens = {
     tabBar: {
       height: platform.getTabBarHeight(),
       itemPadding: platform.select({
-        ios: 4,
+        ios: 6, // Increased from 4 for iOS 18 guidelines
         android: 8,
       }),
       iconMargin: platform.select({
-        ios: 4,
-        android: 0,
+        ios: 6, // Increased for better visual separation in iOS 18
+        android: 4, // Material 3 recommends cleaner spacing
       }),
       bottomInset: platform.getBottomSpace(),
+      // New properties for Material 3 contained indicator
+      indicatorHeight: platform.select({
+        ios: 0, // No indicator on iOS
+        android: 32, // Material 3 specification
+      }),
+      indicatorRadius: platform.select({
+        ios: 0,
+        android: 16, // Pill shape for Material 3
+      }),
     },
     
     // Screen content spacing
@@ -65,7 +74,7 @@ const navigationTokens = {
           default: undefined,
         }),
         fontSize: platform.select({
-          ios: 17,
+          ios: 22, // Increased from 17 for iOS 18 guidelines
           android: 20,
         }),
         fontWeight: platform.select({
@@ -95,12 +104,12 @@ const navigationTokens = {
           default: undefined,
         }),
         fontSize: platform.select({
-          ios: 10,
+          ios: 11, // Slightly increased for iOS 18
           android: 12,
         }),
         fontWeight: platform.select({
           ios: '500',
-          android: '400',
+          android: '500', // Material 3 uses Medium for selected tabs
         }),
         activeColor: theme.colors.primary,
         inactiveColor: '#8E8E93',
@@ -127,7 +136,7 @@ const navigationTokens = {
         ios: '#C8C8CC',
         android: 'transparent',
       }),
-      tabBar: '#C8C8CC',
+      tabBar: '#E5E5E5', // Lighter for iOS 18 and Material 3
     },
     
     // Text and icon colors
@@ -138,6 +147,14 @@ const navigationTokens = {
       }),
       tabBarActive: theme.colors.primary,
       tabBarInactive: '#8E8E93',
+    },
+    
+    // New: Tab indicator colors for Material 3
+    indicator: {
+      background: platform.select({
+        ios: 'transparent', // No indicator on iOS
+        android: 'rgba(0, 122, 255, 0.12)', // 12% primary color for container
+      }),
     },
   },
   
@@ -151,18 +168,18 @@ const navigationTokens = {
         shadowRadius: 2,
       },
       android: {
-        elevation: 4,
+        elevation: 2, // Reduced from 4 for Material 3
       },
     }),
     tabBar: platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08, // Reduced for iOS 18's lighter aesthetic
+        shadowRadius: 3,
       },
       android: {
-        elevation: 8,
+        elevation: 4, // Material 3 recommendation for bottom navigation
       },
     }),
   },
@@ -181,9 +198,25 @@ const navigationTokens = {
         android: 150,
       }),
     },
+    // New: Spring configurations for iOS 18
+    spring: {
+      tab: {
+        stiffness: 300,
+        damping: 20,
+        mass: 0.7,
+        overshootClamping: false,
+      },
+    },
+    // Material 3 easing functions - using actual functions now, not strings
     easing: {
-      // Import from react-native-reanimated or Animated
-      // for platform-specific easing functions
+      // Standard easing function (equivalent to cubic-bezier(0.2, 0.0, 0, 1.0))
+      standard: Platform.OS === 'android' ? RNEasing.bezier(0.2, 0.0, 0, 1.0) : undefined,
+      // Accelerated easing function (equivalent to cubic-bezier(0.3, 0.0, 1.0, 1.0))
+      standardAccelerate: Platform.OS === 'android' ? RNEasing.bezier(0.3, 0.0, 1.0, 1.0) : undefined,
+      // Decelerated easing function (equivalent to cubic-bezier(0.0, 0.0, 0.0, 1.0))
+      standardDecelerate: Platform.OS === 'android' ? RNEasing.bezier(0.0, 0.0, 0.0, 1.0) : undefined,
+      // Emphasized easing function (same as standard but used for emphasized animations)
+      emphasized: Platform.OS === 'android' ? RNEasing.bezier(0.2, 0.0, 0, 1.0) : undefined,
     },
   },
 };

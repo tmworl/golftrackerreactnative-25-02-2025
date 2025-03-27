@@ -33,9 +33,10 @@ const getHeaderOptions = (title, options = {}) => {
       ...tokens.typography.header.backTitle,
     } : undefined,
     headerTintColor: tokens.colors.tint.header,
-    headerBackTitleVisible: platform.isIOS,
+    headerBackTitleVisible: false, // Updated to false for iOS 18
+    // Updated to left alignment for iOS 18 guidelines
     headerTitleAlign: platform.select({
-      ios: 'center',
+      ios: 'left',
       android: 'left',
     }),
     ...options,
@@ -65,6 +66,13 @@ const getTabBarOptions = (route) => {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: tokens.colors.border.tabBar,
       ...tokens.elevation.tabBar,
+    },
+    // Enhanced for iOS 18 and Material 3
+    adaptive: true, // Better handles different screen sizes
+    allowFontScaling: true, // Respects user's accessibility settings
+    // New animation configuration
+    safeAreaInsets: {
+      bottom: platform.getBottomSpace(),
     },
   };
 };
@@ -114,12 +122,20 @@ const getStackScreenOptions = (options = {}) => {
         animation: 'timing',
         config: {
           duration: tokens.animation.timing.standard,
+          // Updated easing for platform consistency
+          ...(Platform.OS === 'android' && tokens.animation.easing.standard ? 
+            { easing: tokens.animation.easing.standard } : 
+            {})
         },
       },
       close: {
         animation: 'timing',
         config: {
           duration: tokens.animation.timing.standard,
+          // Updated easing for platform consistency
+          ...(Platform.OS === 'android' && tokens.animation.easing.standard ? 
+            { easing: tokens.animation.easing.standard } : 
+            {})
         },
       },
     },
